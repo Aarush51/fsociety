@@ -1,0 +1,17 @@
+# Editors and operating systems
+.DS_Store
+*.pem
+.idea
+.vscode/*
+!.vscode/extensions.json
+
+# Node / Vite
+node_modules
+dist
+dist-ssr
+*.local
+
+# Local environment (never commit real secrets)
+.env
+.env.local
+.env.*.local
