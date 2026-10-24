@@ -52,7 +52,7 @@ export function hackathonCardData(hackathon) {
   };
 }
 
-// Only same-origin dashboard/profile/teams destinations survive the redirect.
+// Only same-origin dashboard/profile/teams/ideas destinations survive the redirect.
 export function safeRedirectTarget(target) {
   if (!target || !target.startsWith("/") || target.startsWith("//")) return null;
   let destination;
@@ -63,7 +63,7 @@ export function safeRedirectTarget(target) {
   }
   if (destination.origin !== window.location.origin) return null;
   const targetParts = destination.pathname.split("/").filter(Boolean);
-  return targetParts.some((part) => ["dashboard", "profile", "teams"].includes(part))
+  return targetParts.some((part) => ["dashboard", "profile", "teams", "ideas"].includes(part))
     ? `${destination.pathname}${destination.search}${destination.hash}`
     : null;
 }

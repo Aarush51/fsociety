@@ -7,6 +7,7 @@ import Dashboard from "./pages/Dashboard";
 import HackathonDetail from "./pages/HackathonDetail";
 import Hackathons from "./pages/Hackathons";
 import Home from "./pages/Home";
+import IdeaGenerator from "./pages/IdeaGenerator";
 import Leaderboard from "./pages/Leaderboard";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
@@ -24,6 +25,7 @@ export default function App() {
               <Route index element={<Home />} />
               <Route path="hackathons" element={<Hackathons />} />
               <Route path="hackathons/:slug" element={<HackathonDetail />} />
+              <Route path="ideas" element={<IdeaGenerator />} />
               <Route path="teams" element={<Teams />} />
               <Route path="leaderboard" element={<Leaderboard />} />
               <Route

@@ -6,6 +6,7 @@
   "description": "HackMate — find a hackathon, meet your teammates, and build something that matters.",
   "scripts": {
     "dev": "vite",
+    "dev:api": "node scripts/api-server.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "serve:dist": "node scripts/serve-dist.mjs",
@@ -19,6 +20,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^6.1.2",
+    "supabase": "^2.121.0",
     "vite": "^8.3.4"
   }
 }

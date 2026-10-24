@@ -4,8 +4,32 @@ import { useAuth } from "../context/AuthContext";
 import { Arrow } from "../components/Icons";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
-import { formatNumber, formatReputation, initialsFromName } from "../lib/format";
+import { formatEventDate, formatNumber, formatReputation, initialsFromName } from "../lib/format";
 import { supabase } from "../lib/supabase";
+
+const COIN_PAGE_SIZE = 10;
+const COIN_MAX_LIMIT = 200;
+const TRANSACTION_LABELS = {
+  earned: "Earned",
+  spent: "Spent",
+  refund: "Refund",
+  adjustment: "Adjustment",
+};
+
+function Stars({ rating }) {
+  const value = Math.max(0, Math.min(5, Number(rating) || 0));
+  const empty = 5 - value;
+  return (
+    <span className="review-stars" role="img" aria-label={`${value} out of 5 stars`}>
+      {"★".repeat(value)}
+      {empty ? (
+        <span className="review-stars-empty" aria-hidden="true">
+          {"★".repeat(empty)}
+        </span>
+      ) : null}
+    </span>
+  );
+}
 
 export default function Profile() {
   const { user } = useAuth();
@@ -16,6 +40,14 @@ export default function Profile() {
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState({ text: "Loading your profile…", error: false });
+  const [reviews, setReviews] = useState([]);
+  const [reviewsLoading, setReviewsLoading] = useState(true);
+  const [reviewsError, setReviewsError] = useState(null);
+  const [ledger, setLedger] = useState(null);
+  const [ledgerLoading, setLedgerLoading] = useState(true);
+  const [ledgerError, setLedgerError] = useState(null);
+  const [coinLimit, setCoinLimit] = useState(COIN_PAGE_SIZE);
+  const [historyKey, setHistoryKey] = useState(0);
 
   useEffect(() => {
     if (!supabase) return undefined;
@@ -51,6 +83,68 @@ export default function Profile() {
       active = false;
     };
   }, []);
+
+  // Reviews the signed-in user received (team-scoped rows, so it goes through an RPC).
+  useEffect(() => {
+    if (!supabase) return undefined;
+
+    let active = true;
+    setReviewsLoading(true);
+    setReviewsError(null);
+    supabase
+      .rpc("get_my_received_reviews")
+      .then(({ data, error: requestError }) => {
+        if (!active) return;
+        if (requestError) throw requestError;
+        setReviews(Array.isArray(data) ? data : []);
+      })
+      .catch((requestError) => {
+        if (!active) return;
+        console.error("Could not load received reviews.", requestError);
+        setReviews([]);
+        setReviewsError(requestError);
+      })
+      .finally(() => {
+        if (active) setReviewsLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [historyKey]);
+
+  // The caller's own coin ledger, newest first. The RPC caps the page at 200 rows.
+  useEffect(() => {
+    if (!supabase) return undefined;
+
+    let active = true;
+    setLedgerLoading(true);
+    setLedgerError(null);
+    supabase
+      .rpc("get_my_coin_transactions", { p_limit: coinLimit })
+      .then(({ data, error: requestError }) => {
+        if (!active) return;
+        if (requestError) throw requestError;
+        setLedger({
+          balance: Number(data?.balance) || 0,
+          transaction_count: Number(data?.transaction_count) || 0,
+          transactions: Array.isArray(data?.transactions) ? data.transactions : [],
+        });
+      })
+      .catch((requestError) => {
+        if (!active) return;
+        console.error("Could not load the coin ledger.", requestError);
+        setLedger(null);
+        setLedgerError(requestError);
+      })
+      .finally(() => {
+        if (active) setLedgerLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [coinLimit, historyKey]);
 
   const addSkill = () => {
     const name = skillInput.trim();
@@ -267,6 +361,141 @@ export default function Profile() {
               </Link>
             </section>
           </div>
+        </div>
+        <div className="profile-history-layout">
+          <section className="dashboard-data-section" aria-label="Reviews you received">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">RECEIVED REVIEWS</p>
+                <h2>What teammates say.</h2>
+              </div>
+              {reviews.length ? (
+                <span className="muted tiny">
+                  {formatNumber(reviews.length)} {reviews.length === 1 ? "review" : "reviews"}
+                </span>
+              ) : null}
+            </div>
+            <div id="profile-reviews" className="profile-history-list" aria-live="polite">
+              {reviewsLoading ? (
+                <p className="dashboard-empty">Loading your reviews…</p>
+              ) : reviewsError ? (
+                <p className="dashboard-empty">
+                  Your reviews couldn’t be loaded.{" "}
+                  <button
+                    className="text-link"
+                    type="button"
+                    onClick={() => setHistoryKey((key) => key + 1)}
+                  >
+                    Try again
+                  </button>
+                </p>
+              ) : reviews.length ? (
+                reviews.map((review) => (
+                  <article className="profile-review-card" key={review.id}>
+                    <div className="profile-review-top">
+                      <div>
+                        <strong>
+                          {review.reviewer_name || review.reviewer_username || "A teammate"}
+                        </strong>
+                        {review.reviewer_username ? (
+                          <span className="muted tiny"> @{review.reviewer_username}</span>
+                        ) : null}
+                        <small>
+                          {[review.project_title, review.team_name, formatEventDate(review.created_at)]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </small>
+                      </div>
+                      <Stars rating={review.rating} />
+                    </div>
+                    {review.comment ? (
+                      <p className="profile-review-comment">{review.comment}</p>
+                    ) : (
+                      <p className="profile-review-comment muted">No comment was left.</p>
+                    )}
+                  </article>
+                ))
+              ) : (
+                <p className="dashboard-empty">
+                  No reviews yet. Teammates can review you after you build something together.
+                </p>
+              )}
+            </div>
+          </section>
+          <section className="dashboard-data-section" aria-label="Coin history">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">COIN HISTORY</p>
+                <h2>How you earned.</h2>
+              </div>
+              {ledger ? (
+                <span className="muted tiny">
+                  {formatNumber(ledger.transaction_count)}{" "}
+                  {ledger.transaction_count === 1 ? "transaction" : "transactions"}
+                </span>
+              ) : null}
+            </div>
+            <div id="profile-coin-ledger" className="profile-history-list" aria-live="polite">
+              {ledgerLoading ? (
+                <p className="dashboard-empty">Loading your coin history…</p>
+              ) : ledgerError ? (
+                <p className="dashboard-empty">
+                  Your coin history couldn’t be loaded.{" "}
+                  <button
+                    className="text-link"
+                    type="button"
+                    onClick={() => setHistoryKey((key) => key + 1)}
+                  >
+                    Try again
+                  </button>
+                </p>
+              ) : ledger?.transactions.length ? (
+                ledger.transactions.map((transaction) => (
+                  <article className="profile-coin-row" key={transaction.id}>
+                    <div>
+                      <strong>
+                        {transaction.description ||
+                          TRANSACTION_LABELS[transaction.transaction_type] ||
+                          "Coin activity"}
+                      </strong>
+                      <small>
+                        {TRANSACTION_LABELS[transaction.transaction_type] ||
+                          transaction.transaction_type}{" "}
+                        · {formatEventDate(transaction.created_at)}
+                      </small>
+                    </div>
+                    <span
+                      className={`profile-coin-amount ${Number(transaction.amount) < 0 ? "negative" : "positive"}`}
+                    >
+                      {Number(transaction.amount) < 0 ? "−" : "+"}
+                      {formatNumber(Math.abs(Number(transaction.amount) || 0))}
+                    </span>
+                  </article>
+                ))
+              ) : (
+                <p className="dashboard-empty">
+                  No coin activity yet. Join a hackathon and contribute to start earning.
+                </p>
+              )}
+            </div>
+            {ledger && ledger.transactions.length < ledger.transaction_count ? (
+              coinLimit < COIN_MAX_LIMIT ? (
+                <button
+                  className="text-link profile-history-more"
+                  type="button"
+                  onClick={() => setCoinLimit((limit) => Math.min(limit + 25, COIN_MAX_LIMIT))}
+                  disabled={ledgerLoading}
+                >
+                  Show more transactions
+                </button>
+              ) : (
+                <p className="muted tiny profile-history-note">
+                  Showing the latest {formatNumber(ledger.transactions.length)} of{" "}
+                  {formatNumber(ledger.transaction_count)} transactions.
+                </p>
+              )
+            ) : null}
+          </section>
         </div>
       </main>
     </>

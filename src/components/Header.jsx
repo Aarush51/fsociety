@@ -31,6 +31,7 @@ export default function Header() {
         </Link>
         <div className="nav-links">
           <Link to="/hackathons">Hackathons</Link>
+          <Link to="/ideas">Idea generator</Link>
           <Link to="/teams">Find a team</Link>
           <Link to="/leaderboard">Leaderboard</Link>
           <Link to="/dashboard">Dashboard</Link>
