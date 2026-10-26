@@ -1,10 +1,14 @@
 import { Link, useNavigate } from "react-router-dom";
+import { useAdmin } from "../context/AdminContext";
 import { useAuth } from "../context/AuthContext";
+import { useOrganization } from "../context/OrganizationContext";
 import { useTheme } from "../context/ThemeContext";
 import { Arrow, ThemeIcon } from "./Icons";
 
 export default function Header() {
   const { session, signOut } = useAuth();
+  const { isAdmin } = useAdmin();
+  const { organization } = useOrganization();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const nextTheme = theme === "dark" ? "light" : "dark";
@@ -35,6 +39,8 @@ export default function Header() {
           <Link to="/teams">Find a team</Link>
           <Link to="/leaderboard">Leaderboard</Link>
           <Link to="/dashboard">Dashboard</Link>
+          {organization ? <Link to="/organizer">My organization</Link> : null}
+          {isAdmin ? <Link to="/admin">Admin</Link> : null}
           <Link to="/profile">Profile</Link>
           {signedIn ? (
             <a href="#" onClick={handleLogout}>

@@ -2,12 +2,13 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Arrow } from "../components/Icons";
 import PageTitle from "../components/PageTitle";
+import RegistrationPanel from "../components/RegistrationPanel";
 import { events } from "../lib/demoData";
-import { formatEventDate, hackathonCardData } from "../lib/format";
+import { formatEventDate, formatPrice, hackathonCardData } from "../lib/format";
 import { supabase } from "../lib/supabase";
 
 const DETAIL_FIELDS =
-  "slug, title, organizer, description, category, location, prize, registration_deadline, starts_at, ends_at, status";
+  "id, slug, title, organizer, description, category, location, prize, registration_deadline, starts_at, ends_at, status, organization_id, venue_name, address, city, maps_url, capacity, price, rules, prize_details";
 
 function SampleDetail({ event }) {
   return (
@@ -71,6 +72,14 @@ function SampleDetail({ event }) {
 function DatabaseDetail({ hackathon }) {
   const event = hackathonCardData(hackathon);
   const dates = `${formatEventDate(hackathon.starts_at)} – ${formatEventDate(hackathon.ends_at)}`;
+  const venue = [hackathon.venue_name, hackathon.city].filter(Boolean).join(", ");
+  const address = hackathon.address || "";
+  const price = formatPrice(hackathon.price) || "Free";
+  // Prefer the organizer's Maps link; without one, search Google Maps for the venue address.
+  const mapQuery = [hackathon.venue_name, address, hackathon.city].filter(Boolean).join(", ");
+  const directionsUrl =
+    hackathon.maps_url ||
+    (mapQuery ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}` : "");
   return (
     <section
       id="database-hackathon-detail"
@@ -85,6 +94,7 @@ function DatabaseDetail({ hackathon }) {
           <div>
             <h1>{event.title}</h1>
             <p>Hosted by {event.organizer}</p>
+            {venue ? <p>{venue}</p> : null}
           </div>
         </div>
         <section className="detail-section">
@@ -93,6 +103,18 @@ function DatabaseDetail({ hackathon }) {
             {hackathon.description || "More information about this hackathon will be available soon."}
           </p>
         </section>
+        {hackathon.prize_details ? (
+          <section className="detail-section">
+            <h2>Prizes</h2>
+            <p className="detail-description">{hackathon.prize_details}</p>
+          </section>
+        ) : null}
+        {hackathon.rules ? (
+          <section className="detail-section">
+            <h2>Rules</h2>
+            <p className="detail-description">{hackathon.rules}</p>
+          </section>
+        ) : null}
       </div>
       <aside className="detail-aside">
         <p className="eyebrow">EVENT DETAILS</p>
@@ -102,8 +124,24 @@ function DatabaseDetail({ hackathon }) {
             <dd>{dates}</dd>
           </div>
           <div>
-            <dt>Location</dt>
-            <dd>{event.location}</dd>
+            <dt>Venue</dt>
+            <dd>{hackathon.venue_name || event.location}</dd>
+          </div>
+          {hackathon.city ? (
+            <div>
+              <dt>City</dt>
+              <dd>{hackathon.city}</dd>
+            </div>
+          ) : null}
+          {address ? (
+            <div>
+              <dt>Address</dt>
+              <dd>{address}</dd>
+            </div>
+          ) : null}
+          <div>
+            <dt>Entry price</dt>
+            <dd>{price}</dd>
           </div>
           <div>
             <dt>Prize pool</dt>
@@ -114,10 +152,19 @@ function DatabaseDetail({ hackathon }) {
             <dd>{event.deadline || "Not specified"}</dd>
           </div>
         </dl>
-        <Link to="/signup" className="button button-dark button-full">
-          Join this hackathon <Arrow />
-        </Link>
-        <p className="muted tiny centered">Create a free account to find a team.</p>
+        {directionsUrl ? (
+          <div className="detail-directions">
+            <a
+              className="button button-outline button-full"
+              href={directionsUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Get directions <Arrow diagonal />
+            </a>
+          </div>
+        ) : null}
+        <RegistrationPanel hackathon={hackathon} slug={hackathon.slug} />
       </aside>
     </section>
   );

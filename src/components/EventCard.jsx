@@ -19,10 +19,21 @@ export default function EventCard({ event }) {
             <span>{event.date}</span>
             <span>{event.location}</span>
             {event.deadline ? <span>Deadline: {event.deadline}</span> : null}
+            {event.mapsUrl ? (
+              <a className="event-directions" href={event.mapsUrl} target="_blank" rel="noreferrer">
+                Get directions <Arrow diagonal />
+              </a>
+            ) : null}
           </div>
           <div className="prize">
             <span className="muted tiny">PRIZE POOL</span>
             <strong>{event.prize}</strong>
+            {event.price ? (
+              <>
+                <span className="muted tiny">ENTRY</span>
+                <strong>{event.price}</strong>
+              </>
+            ) : null}
           </div>
         </div>
         <Link

@@ -16,7 +16,7 @@ import { buildTasksFromRoadmap, saveRoadmapTasks } from "../lib/roadmapTasks";
 import { supabase } from "../lib/supabase";
 
 const HACKATHON_FIELDS =
-  "id, slug, title, organizer, description, category, location, prize, registration_deadline, starts_at, ends_at, status";
+  "id, slug, title, organizer, description, category, location, prize, registration_deadline, starts_at, ends_at, status, venue_name, city, capacity, price";
 const APPROVED_STATUSES = ["upcoming", "active"];
 const MAX_SKILLS = 12;
 const EMPTY_TASK_STATUS = { text: "", error: false, done: false, skipped: 0, savedCount: 0 };

@@ -11,7 +11,7 @@ import { hackathonCardData } from "../lib/format";
 import { supabase } from "../lib/supabase";
 
 const HOME_HACKATHON_FIELDS =
-  "id, slug, title, organizer, category, location, prize, registration_deadline, starts_at, ends_at, status";
+  "id, slug, title, organizer, category, location, prize, registration_deadline, starts_at, ends_at, status, venue_name, city, maps_url, capacity, price";
 
 function avatarColors(index) {
   return ["lime", "blue", "peach"][index % 3];

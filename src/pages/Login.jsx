@@ -3,29 +3,49 @@ import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import PageTitle from "../components/PageTitle";
 import { safeRedirectTarget } from "../lib/format";
+import { fetchMyOrganization } from "../lib/organizations";
+
+const AUDIENCES = [
+  { value: "participant", label: "Participant" },
+  { value: "organization", label: "Organization" },
+];
 
 export default function Login() {
   const { session, loading, signIn, configError } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirect = searchParams.get("redirect");
+  const [audience, setAudience] = useState(
+    searchParams.get("as") === "organization" ? "organization" : "participant",
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState({ text: "", error: false });
   const [submitting, setSubmitting] = useState(false);
+  const [resolvingOrganization, setResolvingOrganization] = useState(false);
 
-  if (!loading && session) {
+  // While we check for an organization we keep this page mounted, otherwise the
+  // session update would bounce the user to the participant dashboard first.
+  if (!loading && session && !resolvingOrganization) {
     return <Navigate to={safeRedirectTarget(redirect) || "/dashboard"} replace />;
   }
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    const wantsOrganization = audience === "organization";
+    if (wantsOrganization) setResolvingOrganization(true);
     setSubmitting(true);
     setMessage({ text: "", error: false });
     try {
-      await signIn(email.trim(), password);
-      navigate(safeRedirectTarget(redirect) || "/dashboard");
+      const data = await signIn(email.trim(), password);
+      if (!wantsOrganization) {
+        navigate(safeRedirectTarget(redirect) || "/dashboard");
+        return;
+      }
+      const organization = await fetchMyOrganization(data?.user?.id);
+      navigate(organization ? "/organizer" : "/organization/register");
     } catch (error) {
+      setResolvingOrganization(false);
       setMessage({
         text: error.message || "Authentication failed. Please try again.",
         error: true,
@@ -41,10 +61,31 @@ export default function Login() {
       <main className="auth-main">
         <section className="auth-card">
           <span className="brand-mark auth-logo">H</span>
+          <div className="auth-audience" role="tablist" aria-label="Log in as">
+            {AUDIENCES.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                role="tab"
+                aria-selected={audience === option.value}
+                className={`auth-audience-option${
+                  audience === option.value ? " auth-audience-active" : ""
+                }`}
+                disabled={submitting}
+                onClick={() => setAudience(option.value)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
           <div className="auth-heading">
             <p className="eyebrow">GOOD TO SEE YOU AGAIN</p>
             <h1>Welcome back.</h1>
-            <p className="muted small">Pick up where you left off.</p>
+            <p className="muted small">
+              {audience === "organization"
+                ? "Host offline hackathons for your college, company or community."
+                : "Pick up where you left off."}
+            </p>
           </div>
           <form id="auth-form" onSubmit={handleSubmit}>
             <label>
@@ -77,7 +118,7 @@ export default function Login() {
               type="submit"
               disabled={submitting || Boolean(configError)}
             >
-              Log in
+              {submitting && audience === "organization" ? "Checking your organization…" : "Log in"}
             </button>
             <p className="form-message" role="status" aria-live="polite" data-error={message.error}>
               {configError || message.text}
@@ -85,6 +126,7 @@ export default function Login() {
           </form>
           <p className="auth-switch">
             New to HackMate? <Link to="/signup">Create an account</Link>
+            {audience === "organization" ? " — then log in here as an organization." : null}
           </p>
         </section>
       </main>

@@ -37,13 +37,23 @@ export function hackathonCardData(hackathon) {
   const start = formatEventDate(hackathon.starts_at, { month: "short", day: "numeric" });
   const end = formatEventDate(hackathon.ends_at, { month: "short", day: "numeric" });
   const deadline = formatEventDate(hackathon.registration_deadline);
+  const venue = hackathon.venue_name || "";
+  const city = hackathon.city || "";
   return {
     id: hackathon.slug,
     category: category.toUpperCase(),
     title: hackathon.title,
     organizer: hackathon.organizer || "Community organizer",
     date: start && end ? `${start} – ${end}` : start || end || "Dates to be announced",
-    location: hackathon.location || "Location to be announced",
+    venue,
+    city,
+    mapsUrl: hackathon.maps_url || "",
+    // Sample/demo hackathons have no price column, so they show no price at all.
+    price: formatPrice(hackathon.price),
+    location:
+      [venue, city].filter(Boolean).join(", ") ||
+      hackathon.location ||
+      "Location to be announced",
     prize: hackathon.prize || "To be announced",
     deadline,
     accent,
@@ -52,7 +62,15 @@ export function hackathonCardData(hackathon) {
   };
 }
 
-// Only same-origin dashboard/profile/teams/ideas destinations survive the redirect.
+// Rupee amount for a hackathon entry fee; 0 (or missing) means the event is free.
+export function formatPrice(value) {
+  if (value === null || value === undefined || value === "") return "";
+  const amount = Number(value);
+  if (!amount) return "Free";
+  return `₹${new Intl.NumberFormat("en-IN").format(amount)}`;
+}
+
+// Only same-origin dashboard/profile/teams/ideas/organizer destinations survive the redirect.
 export function safeRedirectTarget(target) {
   if (!target || !target.startsWith("/") || target.startsWith("//")) return null;
   let destination;
@@ -63,7 +81,9 @@ export function safeRedirectTarget(target) {
   }
   if (destination.origin !== window.location.origin) return null;
   const targetParts = destination.pathname.split("/").filter(Boolean);
-  return targetParts.some((part) => ["dashboard", "profile", "teams", "ideas"].includes(part))
+  return targetParts.some((part) =>
+    ["dashboard", "profile", "teams", "ideas", "organizer", "organization"].includes(part),
+  )
     ? `${destination.pathname}${destination.search}${destination.hash}`
     : null;
 }
