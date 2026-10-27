@@ -6,7 +6,7 @@ import PageTitle from "../components/PageTitle";
 import { useAdmin } from "../context/AdminContext";
 import { loadOrganizationsForReview, reviewOrganization } from "../lib/admin";
 import { formatEventDate } from "../lib/format";
-import { ORGANIZATION_TYPES } from "../lib/organizations";
+import { organizationTypeLabel } from "../lib/organizations";
 
 const TABS = [
   { value: "pending", label: "Pending" },
@@ -19,10 +19,6 @@ const EMPTY_COPY = {
   approved: "No organizations have been approved yet.",
   rejected: "No organizations have been rejected yet.",
 };
-
-function typeLabel(value) {
-  return ORGANIZATION_TYPES.find((type) => type.value === value)?.label || value || "Organization";
-}
 
 function Fact({ label, children }) {
   return (
@@ -61,7 +57,7 @@ function OrganizationCard({ organization, busy, onApprove, onReject }) {
       <header className="admin-card-head">
         <div>
           <p className="eyebrow">
-            {typeLabel(organization.org_type)} · {organization.city}
+            {organizationTypeLabel(organization.org_type)} · {organization.city}
           </p>
           <h2>{organization.org_name}</h2>
         </div>

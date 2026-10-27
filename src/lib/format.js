@@ -16,6 +16,17 @@ export function initialsFromName(name, fallback = "HM") {
   return initials || fallback;
 }
 
+// "Rahul Kumar Singh" → "Rahul S." for compact friend-code lookups.
+export function shortName(value, fallback = "A HackMate member") {
+  const parts = String(value || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!parts.length) return fallback;
+  if (parts.length === 1) return parts[0];
+  return `${parts[0]} ${parts[parts.length - 1][0].toUpperCase()}.`;
+}
+
 export function formatNumber(value) {
   return new Intl.NumberFormat().format(Number(value) || 0);
 }

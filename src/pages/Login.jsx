@@ -3,7 +3,7 @@ import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import PageTitle from "../components/PageTitle";
 import { safeRedirectTarget } from "../lib/format";
-import { fetchMyOrganization } from "../lib/organizations";
+import { ORG_EMAIL_MESSAGE, fetchMyOrganization, isAllowedOrgEmail } from "../lib/organizations";
 
 const AUDIENCES = [
   { value: "participant", label: "Participant" },
@@ -11,7 +11,7 @@ const AUDIENCES = [
 ];
 
 export default function Login() {
-  const { session, loading, signIn, configError } = useAuth();
+  const { session, loading, signIn, signOut, configError } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirect = searchParams.get("redirect");
@@ -40,6 +40,18 @@ export default function Login() {
       const data = await signIn(email.trim(), password);
       if (!wantsOrganization) {
         navigate(safeRedirectTarget(redirect) || "/dashboard");
+        return;
+      }
+      // Organizations may only sign in with a company or college address, so a
+      // blocked mailbox is signed straight back out.
+      if (!isAllowedOrgEmail(data?.user?.email)) {
+        try {
+          await signOut();
+        } catch (signOutError) {
+          console.error("Could not sign out after a blocked organization email.", signOutError);
+        }
+        setResolvingOrganization(false);
+        setMessage({ text: ORG_EMAIL_MESSAGE, error: true });
         return;
       }
       const organization = await fetchMyOrganization(data?.user?.id);

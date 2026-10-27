@@ -6,6 +6,7 @@ import { useAuth } from "../context/AuthContext";
 import { useOrganization } from "../context/OrganizationContext";
 import {
   ORGANIZATION_TYPES,
+  ORG_EMAIL_HINT,
   createOrganization,
   validateOrganization,
 } from "../lib/organizations";
@@ -119,15 +120,7 @@ export default function OrganizationRegister() {
             />
           </Field>
 
-          <Field
-            label="Official email"
-            hint={
-              isCollegeClub
-                ? "Use your college email — gmail.com, yahoo.com, outlook.com, hotmail.com and icloud.com are not accepted."
-                : undefined
-            }
-            error={errors.contact_email}
-          >
+          <Field label="Official email" hint={ORG_EMAIL_HINT} error={errors.contact_email}>
             <input
               name="contact_email"
               type="email"

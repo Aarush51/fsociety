@@ -8,8 +8,20 @@ export const ORGANIZATION_TYPES = [
   { value: "college_club", label: "College club" },
   { value: "company", label: "Company" },
   { value: "community", label: "Community or meetup" },
-  { value: "individual", label: "Individual organizer" },
 ];
+
+// Labels exist for every type a form can no longer offer, so rows that were
+// saved before "Individual organizer" was retired still read properly.
+export const ORGANIZATION_TYPE_LABELS = {
+  college_club: "College club",
+  company: "Company",
+  community: "Community or meetup",
+  individual: "Individual organizer",
+};
+
+export function organizationTypeLabel(value) {
+  return ORGANIZATION_TYPE_LABELS[value] || value || "Organization";
+}
 
 // Copy for the status banner on the dashboard and the host page.
 export const ORGANIZATION_STATUS = {
@@ -27,9 +39,14 @@ export const ORGANIZATION_STATUS = {
   },
 };
 
-// A college club has to prove it is attached to an institution, so free mailbox
-// providers are rejected for its faculty coordinator.
-const PUBLIC_EMAIL_DOMAINS = [
+// ---------------------------------------------------------------------------
+// Organization emails: company or education addresses only
+// ---------------------------------------------------------------------------
+// Every free mailbox provider we reject, in one place. A domain that is not on
+// this list — a company, or an institution such as .edu, .edu.xx or .ac.xx — is
+// accepted.
+
+export const FREE_EMAIL_DOMAINS = [
   "gmail.com",
   "googlemail.com",
   "yahoo.com",
@@ -38,19 +55,29 @@ const PUBLIC_EMAIL_DOMAINS = [
   "outlook.com",
   "hotmail.com",
   "live.com",
+  "msn.com",
   "icloud.com",
   "me.com",
-  "rediffmail.com",
+  "proton.me",
   "protonmail.com",
   "aol.com",
+  "gmx.com",
+  "zoho.com",
+  "rediffmail.com",
+  "mail.com",
+  "yandex.com",
+  "tutanota.com",
 ];
 
-// A college club has to write from its institution, so the official email can
-// not be a free mailbox either.
-const PUBLIC_MAILBOX_DOMAINS = ["gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "icloud.com"];
+// The one sentence shown whenever an organization email is blocked.
+export const ORG_EMAIL_MESSAGE = "Organizations need a company or college email.";
 
-export function isPublicMailboxEmail(email) {
-  return PUBLIC_MAILBOX_DOMAINS.includes(emailDomain(email));
+// Hint under the official email field, for every organization type.
+export const ORG_EMAIL_HINT =
+  "Use a company or college address — gmail.com, yahoo.com, outlook.com and other free providers are not accepted.";
+
+export function isFreeEmailDomain(email) {
+  return FREE_EMAIL_DOMAINS.includes(emailDomain(email));
 }
 
 export const ORGANIZATION_FIELDS =
@@ -63,8 +90,9 @@ export function emailDomain(email) {
   return parts.length === 2 ? parts[1] : "";
 }
 
-export function isPublicEmailDomain(email) {
-  return PUBLIC_EMAIL_DOMAINS.includes(emailDomain(email));
+// A company or college address: well formed, and not a free mailbox provider.
+export function isAllowedOrgEmail(email) {
+  return EMAIL_PATTERN.test(String(email || "").trim()) && !isFreeEmailDomain(email);
 }
 
 export function isHttpUrl(value) {
@@ -104,11 +132,9 @@ export function validateOrganization(values) {
   if (orgName.length < 2) errors.org_name = "Add the organization name.";
   else if (orgName.length > 160) errors.org_name = "Keep the name under 160 characters.";
 
+  // The official email has to be a company or college address for every type.
   if (!EMAIL_PATTERN.test(contactEmail)) errors.contact_email = "Add a valid official email address.";
-  else if (values.org_type === "college_club" && isPublicMailboxEmail(contactEmail)) {
-    errors.contact_email =
-      "College clubs must use an institutional email — gmail.com, yahoo.com, outlook.com, hotmail.com and icloud.com are not accepted.";
-  }
+  else if (!isAllowedOrgEmail(contactEmail)) errors.contact_email = ORG_EMAIL_MESSAGE;
 
   if (!values.phone.trim()) errors.phone = "Add a phone number.";
   else if (!isPhoneNumber(values.phone)) errors.phone = "Add a phone number with 10 to 15 digits.";
@@ -141,9 +167,9 @@ export function validateOrganization(values) {
     }
     if (!EMAIL_PATTERN.test(coordinatorEmail)) {
       errors.coordinator_email = "Add the faculty coordinator's email address.";
-    } else if (isPublicEmailDomain(coordinatorEmail)) {
+    } else if (isFreeEmailDomain(coordinatorEmail)) {
       errors.coordinator_email =
-        "Use the coordinator's college email address — gmail.com, yahoo.com and outlook.com are not accepted.";
+        "Use the coordinator's college email address — free providers such as gmail.com and yahoo.com are not accepted.";
     }
   }
 

@@ -1,10 +1,18 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import FriendCodeInput from "../components/FriendCodeInput";
+import { SkillsFields, cleanHobbies, cleanInterests, cleanSkillLevels } from "../features/teams";
 import { Arrow } from "../components/Icons";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
-import { formatEventDate, formatNumber, formatReputation, initialsFromName } from "../lib/format";
+import {
+  formatEventDate,
+  formatNumber,
+  formatReputation,
+  initialsFromName,
+  shortName,
+} from "../lib/format";
 import { supabase } from "../lib/supabase";
 
 const COIN_PAGE_SIZE = 10;
@@ -48,6 +56,14 @@ export default function Profile() {
   const [ledgerError, setLedgerError] = useState(null);
   const [coinLimit, setCoinLimit] = useState(COIN_PAGE_SIZE);
   const [historyKey, setHistoryKey] = useState(0);
+  const [friendCode, setFriendCode] = useState("");
+  const [codeStatus, setCodeStatus] = useState({ text: "", error: false });
+  const [friends, setFriends] = useState([]);
+  const [skillLevels, setSkillLevels] = useState({});
+  const [interests, setInterests] = useState([]);
+  const [hobbies, setHobbies] = useState("");
+  const [extrasLoaded, setExtrasLoaded] = useState(false);
+  const [extrasMessage, setExtrasMessage] = useState({ text: "", error: false });
 
   useEffect(() => {
     if (!supabase) return undefined;
@@ -67,6 +83,7 @@ export default function Profile() {
         });
         setSkills(data.skills || []);
         setStats(data);
+        setFriendCode(data.friend_code || "");
         setReady(true);
         setMessage({ text: "", error: false });
       })
@@ -146,6 +163,40 @@ export default function Profile() {
     };
   }, [coinLimit, historyKey]);
 
+  // Skills with levels, interests and hobbies come from their own RPC, so the
+  // free-text skills list above keeps working exactly as it did before.
+  useEffect(() => {
+    if (!supabase) return undefined;
+
+    let active = true;
+    setExtrasMessage({ text: "", error: false });
+    supabase
+      .rpc("get_my_profile_extras")
+      .then(({ data, error: requestError }) => {
+        if (!active) return;
+        if (requestError) throw requestError;
+        setSkillLevels(cleanSkillLevels(data?.skill_levels));
+        setInterests(cleanInterests(data?.interests));
+        setHobbies(cleanHobbies(data?.hobbies));
+        setExtrasLoaded(true);
+      })
+      .catch((requestError) => {
+        if (!active) return;
+        console.error("Could not load skills, interests and hobbies.", requestError);
+        // Keep the empty defaults and leave the fields locked: saving now would
+        // overwrite whatever is stored with empty values.
+        setExtrasLoaded(false);
+        setExtrasMessage({
+          text: requestError.message || "Skills, interests and hobbies could not be loaded.",
+          error: true,
+        });
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [historyKey]);
+
   const addSkill = () => {
     const name = skillInput.trim();
     if (!name) return;
@@ -196,6 +247,29 @@ export default function Profile() {
         bio: form.bio.trim(),
       });
       setMessage({ text: "Your profile has been saved.", error: false });
+
+      // The level-based fields save in their own call: the profile itself is
+      // already stored, so a problem here never loses the rest of the edits.
+      if (extrasLoaded) {
+        try {
+          const { data: saved, error: extrasError } = await supabase.rpc("save_my_profile_extras", {
+            p_skill_levels: cleanSkillLevels(skillLevels),
+            p_interests: cleanInterests(interests),
+            p_hobbies: hobbies.trim(),
+          });
+          if (extrasError) throw extrasError;
+          setSkillLevels(cleanSkillLevels(saved?.skill_levels));
+          setInterests(cleanInterests(saved?.interests));
+          setHobbies(cleanHobbies(saved?.hobbies));
+          setExtrasMessage({ text: "", error: false });
+        } catch (extrasError) {
+          console.error("Could not save skills, interests and hobbies.", extrasError);
+          setExtrasMessage({
+            text: extrasError.message || "Skills, interests and hobbies could not be saved.",
+            error: true,
+          });
+        }
+      }
     } catch (error) {
       console.error("Could not save the profile.", error);
       setMessage({
@@ -205,6 +279,30 @@ export default function Profile() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleCopyFriendCode = async () => {
+    if (!friendCode) return;
+    try {
+      if (!navigator.clipboard?.writeText) {
+        throw new Error("Clipboard access is unavailable in this browser.");
+      }
+      await navigator.clipboard.writeText(friendCode);
+      setCodeStatus({
+        text: "Your friend ID is copied — paste it anywhere to share it.",
+        error: false,
+      });
+    } catch (error) {
+      console.error("Could not copy the friend ID.", error);
+      setCodeStatus({
+        text: "Could not copy automatically — select the ID and copy it.",
+        error: true,
+      });
+    }
+  };
+
+  const handleFriendFound = (member) => {
+    setFriends((current) => [member, ...current.filter((friend) => friend.id !== member.id)]);
   };
 
   const disabled = !ready || saving;
@@ -231,6 +329,47 @@ export default function Profile() {
             <p className="muted small" id="profile-email">
               {user?.email || ""}
             </p>
+            <div className="friend-code-block">
+              <span className="eyebrow">YOUR FRIEND ID</span>
+              <div className="friend-code-row">
+                <input
+                  id="profile-friend-code"
+                  type="text"
+                  readOnly
+                  value={friendCode}
+                  placeholder="Not generated yet"
+                  aria-label="Your HackMate friend ID"
+                  onFocus={(event) => event.target.select()}
+                />
+                <button
+                  id="profile-copy-friend-code"
+                  className="button button-outline"
+                  type="button"
+                  onClick={handleCopyFriendCode}
+                  disabled={!friendCode}
+                >
+                  Copy
+                </button>
+              </div>
+              <p className="muted tiny friend-code-share">
+                {friendCode ? (
+                  <>
+                    Share my ID: <strong>{friendCode}</strong> — friends can find you with it.
+                  </>
+                ) : (
+                  "Your friend ID isn’t available yet."
+                )}
+              </p>
+              <p
+                id="profile-friend-code-message"
+                className="form-message"
+                role="status"
+                aria-live="polite"
+                data-error={codeStatus.error}
+              >
+                {codeStatus.text}
+              </p>
+            </div>
             <form id="profile-form" onSubmit={handleSubmit}>
               <label htmlFor="profile-full-name">Full name</label>
               <input
@@ -309,6 +448,28 @@ export default function Profile() {
                 </button>
               </div>
               <p className="muted tiny">Add up to 20 skills. Each skill can be up to 80 characters.</p>
+              <div className="tf-profile-section">
+                <p className="eyebrow">SKILL LEVELS, INTERESTS AND HOBBIES</p>
+                <SkillsFields
+                  id="profile-skills-fields"
+                  skillLevels={skillLevels}
+                  interests={interests}
+                  hobbies={hobbies}
+                  onSkillLevelsChange={setSkillLevels}
+                  onInterestsChange={setInterests}
+                  onHobbiesChange={setHobbies}
+                  disabled={disabled || !extrasLoaded}
+                />
+                <p
+                  id="profile-extras-message"
+                  className="form-message"
+                  role="status"
+                  aria-live="polite"
+                  data-error={extrasMessage.error}
+                >
+                  {extrasMessage.text}
+                </p>
+              </div>
               <button className="button button-dark button-full" type="submit" disabled={disabled}>
                 Save profile
               </button>
@@ -362,6 +523,42 @@ export default function Profile() {
             </section>
           </div>
         </div>
+        <section className="dashboard-data-section" aria-label="Add a friend with a friend ID">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">ADD A FRIEND</p>
+              <h2>Look someone up by ID.</h2>
+            </div>
+          </div>
+          <div className="friend-code-panel">
+            <p className="muted small friend-code-intro">
+              Type a HackMate friend ID to see who it belongs to before you add them.
+            </p>
+            <FriendCodeInput
+              id="profile-friend-lookup"
+              label="Their friend ID"
+              confirmLabel="Add friend"
+              onConfirm={handleFriendFound}
+            />
+            <div className="friend-code-added" aria-live="polite">
+              {friends.length ? (
+                <div className="dashboard-item-list">
+                  {friends.map((friend) => (
+                    <article className="dashboard-data-card" key={friend.id}>
+                      <span>
+                        <strong>{shortName(friend.full_name)}</strong>
+                        <small>{friend.friend_code} · added this visit</small>
+                      </span>
+                    </article>
+                  ))}
+                </div>
+              ) : null}
+              <p className="muted tiny friend-code-note">
+                Friend requests aren’t saved yet — share your own ID so they can add you back.
+              </p>
+            </div>
+          </div>
+        </section>
         <div className="profile-history-layout">
           <section className="dashboard-data-section" aria-label="Reviews you received">
             <div className="section-heading">

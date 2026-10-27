@@ -1,0 +1,37 @@
+/* Team formation feature: skills, interests and hobbies.
+   Reuses the shared .skill / .profile-skill-list / .profile-skill-entry look and
+   only adds what the level pickers need. Colours come from the same variables
+   as the rest of the app, with a dark-mode block at the bottom. */
+
+.tf-fields { display: grid; gap: 17px; }
+.tf-block { display: grid; gap: 8px; }
+.tf-block > label { font-size: 10px; font-weight: 700; }
+.tf-block .profile-skill-list { min-height: 25px; }
+.tf-skill { gap: 7px; padding: 5px 8px 5px 10px; }
+.tf-skill-name { white-space: nowrap; }
+.tf-skill button { padding: 0; border: 0; background: none; color: inherit; cursor: pointer; font-size: 15px; line-height: 1; }
+.tf-level { padding: 1px 3px; border: 1px solid var(--line); border-radius: 8px; background: rgba(255,255,255,.9); color: inherit; font: inherit; font-size: 9px; font-weight: 700; cursor: pointer; }
+.tf-block .profile-skill-entry { flex-wrap: wrap; }
+.tf-block .profile-skill-entry input { flex: 1 1 170px; min-width: 0; }
+.tf-block .profile-skill-entry .button { flex: 0 0 auto; min-height: 39px; padding-inline: 13px; font-size: 10px; }
+.tf-level-picker { flex: 0 0 auto; min-height: 39px; padding: 0 8px; border: 1px solid var(--line); border-radius: 11px; background: #fff; color: var(--foreground); font: inherit; font-size: 10px; cursor: pointer; }
+.tf-fields input, .tf-fields textarea { width: 100%; padding: 11px 12px; border: 1px solid var(--line); border-radius: 11px; background: #fff; color: var(--foreground); font: inherit; font-size: 12px; }
+.tf-fields input::placeholder, .tf-fields textarea::placeholder { color: #a0a196; }
+.tf-fields textarea { resize: vertical; line-height: 1.6; }
+.tf-fields input:focus, .tf-fields textarea:focus, .tf-level-picker:focus, .tf-level:focus { border-color: #8caf3d; outline: 2px solid rgba(140,175,61,.2); }
+.tf-hint { margin: 0; }
+.tf-profile-section { display: grid; gap: 12px; margin-top: 14px; padding-top: 16px; border-top: 1px solid var(--line); }
+.tf-profile-section > .eyebrow { margin: 0; }
+.tf-note { margin-top: 2px; }
+
+html[data-theme="dark"] .tf-profile-section { border-top-color: var(--line); }
+html[data-theme="dark"] .tf-fields input,
+html[data-theme="dark"] .tf-fields textarea,
+html[data-theme="dark"] .tf-level,
+html[data-theme="dark"] .tf-level-picker { border-color: var(--line); background: var(--surface-muted); color: var(--foreground); }
+html[data-theme="dark"] .tf-fields input::placeholder,
+html[data-theme="dark"] .tf-fields textarea::placeholder { color: #8990a8; }
+html[data-theme="dark"] .tf-fields input:focus,
+html[data-theme="dark"] .tf-fields textarea:focus,
+html[data-theme="dark"] .tf-level-picker:focus,
+html[data-theme="dark"] .tf-level:focus { border-color: var(--primary); outline-color: rgba(163,160,255,.22); }

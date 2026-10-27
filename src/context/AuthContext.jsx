@@ -50,12 +50,21 @@ export function AuthProvider({ children }) {
     return data;
   }, []);
 
-  const signUp = useCallback(async (email, password, fullName) => {
+  // `extras` is optional: { skills: { name: level }, interests: string[],
+  // hobbies: string }. They ride along in the signup metadata and the database
+  // copies them onto the new profile row, which is the only way they survive
+  // when the account still needs its email confirmed. Omitted values are not
+  // sent at all, so an ordinary signup is unchanged.
+  const signUp = useCallback(async (email, password, fullName, extras = null) => {
     if (!supabase) throw new Error(supabaseSetupMessage);
+    const metadata = { full_name: fullName };
+    if (extras?.skills && Object.keys(extras.skills).length) metadata.skills = extras.skills;
+    if (extras?.interests?.length) metadata.interests = extras.interests;
+    if (extras?.hobbies) metadata.hobbies = extras.hobbies;
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: fullName } },
+      options: { data: metadata },
     });
     if (error) throw error;
     return data;

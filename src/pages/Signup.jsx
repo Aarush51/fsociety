@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import PageTitle from "../components/PageTitle";
+import { SkillsFields, cleanInterests, cleanSkillLevels } from "../features/teams";
 import { safeRedirectTarget } from "../lib/format";
 
 export default function Signup() {
@@ -12,6 +13,9 @@ export default function Signup() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [skillLevels, setSkillLevels] = useState({});
+  const [interests, setInterests] = useState([]);
+  const [hobbies, setHobbies] = useState("");
   const [message, setMessage] = useState({ text: "", error: false });
   const [submitting, setSubmitting] = useState(false);
 
@@ -24,7 +28,11 @@ export default function Signup() {
     setSubmitting(true);
     setMessage({ text: "", error: false });
     try {
-      const result = await signUp(email.trim(), password, name.trim());
+      const result = await signUp(email.trim(), password, name.trim(), {
+        skills: cleanSkillLevels(skillLevels),
+        interests: cleanInterests(interests),
+        hobbies: hobbies.trim(),
+      });
       if (!result.session) {
         setMessage({
           text: "Check your email to confirm your account, then log in.",
@@ -92,6 +100,16 @@ export default function Signup() {
                 onChange={(event) => setPassword(event.target.value)}
               />
             </label>
+            <SkillsFields
+              id="signup-skills"
+              skillLevels={skillLevels}
+              interests={interests}
+              hobbies={hobbies}
+              onSkillLevelsChange={setSkillLevels}
+              onInterestsChange={setInterests}
+              onHobbiesChange={setHobbies}
+              disabled={submitting}
+            />
             <label className="checkbox-label">
               <input type="checkbox" required />
               <span>I agree to help build a kind and welcoming community.</span>
