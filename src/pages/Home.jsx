@@ -4,18 +4,14 @@ import EventCard from "../components/EventCard";
 import { Arrow } from "../components/Icons";
 import LeaderboardRows from "../components/LeaderboardRows";
 import PageTitle from "../components/PageTitle";
-import PersonCard from "../components/PersonCard";
 import SectionHeading from "../components/SectionHeading";
-import { events, leaderboard, teammates } from "../lib/demoData";
+import { events, leaderboard } from "../lib/demoData";
 import { hackathonCardData } from "../lib/format";
 import { supabase } from "../lib/supabase";
 
 const HOME_HACKATHON_FIELDS =
   "id, slug, title, organizer, category, location, prize, registration_deadline, starts_at, ends_at, status, venue_name, city, maps_url, capacity, price";
 
-function avatarColors(index) {
-  return ["lime", "blue", "peach"][index % 3];
-}
 
 function builderInitials(name) {
   return (name || "?")
@@ -31,8 +27,6 @@ export default function Home() {
   const [homeEvents, setHomeEvents] = useState(events);
   const [eventStatus, setEventStatus] = useState("Loading hackathons…");
   const [eventsBusy, setEventsBusy] = useState(true);
-  const [builders, setBuilders] = useState(null);
-  const [buildersNote, setBuildersNote] = useState("A few students looking for a team");
   const [leaderboardPeople, setLeaderboardPeople] = useState(leaderboard);
   const [leaderboardStatus, setLeaderboardStatus] = useState("Loading leaderboard…");
 
@@ -70,38 +64,6 @@ export default function Home() {
       })
       .finally(() => {
         if (active) setEventsBusy(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!supabase) {
-      setBuildersNote("Sample member profiles");
-      return undefined;
-    }
-
-    let active = true;
-    supabase
-      .rpc("get_featured_builders")
-      .then(({ data, error }) => {
-        if (!active) return;
-        if (error) throw error;
-        if (data?.length) {
-          setBuilders(data);
-          setBuildersNote(`${data.length} member profiles`);
-        } else {
-          setBuilders(null);
-          setBuildersNote("No live member profiles yet; showing sample members.");
-        }
-      })
-      .catch((error) => {
-        if (!active) return;
-        console.error("Could not load community builders.", error);
-        setBuilders(null);
-        setBuildersNote("Live member profiles are unavailable; showing sample members.");
       });
 
     return () => {
@@ -178,9 +140,6 @@ export default function Home() {
             <div className="hero-actions">
               <Link className="button button-dark" to="/hackathons">
                 Explore hackathons <Arrow />
-              </Link>
-              <Link className="button button-outline" to="/teams">
-                Find your team
               </Link>
             </div>
             <p className="social-proof">
@@ -272,84 +231,6 @@ export default function Home() {
                 <EventCard event={event} key={event.id} />
               ))}
             </div>
-          </div>
-        </section>
-
-        <section id="teams" className="section wrap team-section">
-          <div className="team-copy">
-            <p className="eyebrow">BETTER TOGETHER</p>
-            <h2>
-              You bring a skill.
-              <br />
-              We’ll find the
-              <br />
-              <span className="highlight">rest of the team.</span>
-            </h2>
-            <p className="muted section-description">
-              Designer who wants to build? Developer with an idea? First hackathon ever? There's a
-              seat at the table with your name on it.
-            </p>
-            <div className="filter-list">
-              <span className="skill">Designers</span>
-              <span className="skill">Developers</span>
-              <span className="skill">Idea people</span>
-              <span className="skill">First-timers</span>
-            </div>
-            <Link className="button button-dark" to="/teams">
-              Meet your teammates <Arrow />
-            </Link>
-            <p className="muted tiny">No awkward cold DMs. Just people excited to make things.</p>
-          </div>
-          <div className="team-panel">
-            <div className="team-panel-heading">
-              <div>
-                <strong>{builders ? "Builders in the community" : "People like you, building things"}</strong>
-                <p className="muted tiny">{buildersNote}</p>
-              </div>
-              {builders ? (
-                <Link className="status-label" to="/teams">
-                  FIND A TEAM
-                </Link>
-              ) : (
-                <span className="status-label">42 ONLINE</span>
-              )}
-            </div>
-            {builders
-              ? builders.map((person, index) => {
-                  const reputation = Number(person.reputation) || 0;
-                  const skills = person.skills || [];
-                  return (
-                    <article className="person-card" key={`${person.username}-${index}`}>
-                      <div className={`avatar ${avatarColors(index)}`}>
-                        {builderInitials(person.full_name)}
-                      </div>
-                      <div className="person-main">
-                        <div className="person-heading">
-                          <strong>{person.full_name}</strong>
-                        </div>
-                        <p className="muted tiny">
-                          {person.institution || `@${person.username}`} ·{" "}
-                          {reputation ? `${reputation.toFixed(1)} ★` : "New member"}
-                        </p>
-                        <div className="skill-list">
-                          {skills.length ? (
-                            skills.map((skill) => (
-                              <span className="skill" key={skill}>
-                                {skill}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="muted tiny">Skills coming soon</span>
-                          )}
-                        </div>
-                      </div>
-                    </article>
-                  );
-                })
-              : teammates.map((person) => <PersonCard person={person} key={person.name} />)}
-            <Link to="/teams" className="browse-link">
-              Browse {builders ? "teams" : "all teammates"} <Arrow />
-            </Link>
           </div>
         </section>
 

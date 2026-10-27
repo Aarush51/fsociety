@@ -53,6 +53,7 @@ as $$
 declare
   cleaned jsonb := '{}'::jsonb;
   seen text[] := array[]::text[];
+  kept integer := 0;
   entry record;
   skill_name text;
   skill_level integer;
@@ -62,7 +63,7 @@ begin
   end if;
 
   for entry in select key, value from jsonb_each_text(p_skills) order by key loop
-    exit when jsonb_object_length(cleaned) >= 20;
+    exit when kept >= 20;
     skill_name := trim(entry.key);
     skill_level := case when entry.value in ('1', '2', '3') then entry.value::integer end;
     continue when skill_level is null
@@ -70,6 +71,7 @@ begin
       or lower(skill_name) = any (seen);
     cleaned := cleaned || jsonb_build_object(skill_name, skill_level);
     seen := seen || lower(skill_name);
+    kept := kept + 1;
   end loop;
 
   return cleaned;

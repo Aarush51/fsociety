@@ -5,11 +5,19 @@ import PageTitle from "../components/PageTitle";
 import { SkillsFields, cleanInterests, cleanSkillLevels } from "../features/teams";
 import { safeRedirectTarget } from "../lib/format";
 
+const AUDIENCES = [
+  { value: "participant", label: "Participant" },
+  { value: "organization", label: "Organization" },
+];
+
 export default function Signup() {
-  const { session, loading, signUp, configError } = useAuth();
+  const { session, loading, signUp, chooseMode, configError } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirect = searchParams.get("redirect");
+  const [audience, setAudience] = useState(
+    searchParams.get("as") === "organization" ? "organization" : "participant",
+  );
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -25,19 +33,29 @@ export default function Signup() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    const wantsOrganization = audience === "organization";
+    chooseMode(wantsOrganization ? "organization" : "participant");
     setSubmitting(true);
     setMessage({ text: "", error: false });
     try {
-      const result = await signUp(email.trim(), password, name.trim(), {
-        skills: cleanSkillLevels(skillLevels),
-        interests: cleanInterests(interests),
-        hobbies: hobbies.trim(),
-      });
+      // Organizers are never asked for participant skills: they only get an
+      // account here and register their organization on the next page.
+      const result = wantsOrganization
+        ? await signUp(email.trim(), password, name.trim())
+        : await signUp(email.trim(), password, name.trim(), {
+            skills: cleanSkillLevels(skillLevels),
+            interests: cleanInterests(interests),
+            hobbies: hobbies.trim(),
+          });
       if (!result.session) {
         setMessage({
-          text: "Check your email to confirm your account, then log in.",
+          text: wantsOrganization
+            ? "Check your email to confirm your account, then log in as an organization."
+            : "Check your email to confirm your account, then log in.",
           error: false,
         });
+      } else if (wantsOrganization) {
+        navigate("/organization/register");
       } else {
         navigate(safeRedirectTarget(redirect) || "/dashboard");
       }
@@ -57,10 +75,35 @@ export default function Signup() {
       <main className="auth-main">
         <section className="auth-card">
           <span className="brand-mark auth-logo">H</span>
+          <div className="auth-audience" role="tablist" aria-label="Sign up as">
+            {AUDIENCES.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                role="tab"
+                aria-selected={audience === option.value}
+                className={`auth-audience-option${
+                  audience === option.value ? " auth-audience-active" : ""
+                }`}
+                disabled={submitting}
+                onClick={() => setAudience(option.value)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
           <div className="auth-heading">
-            <p className="eyebrow">YOUR NEXT THING STARTS HERE</p>
-            <h1>Join HackMate.</h1>
-            <p className="muted small">Create an account and find your people.</p>
+            <p className="eyebrow">
+              {audience === "organization"
+                ? "HOST HACKATHONS PEOPLE REMEMBER"
+                : "YOUR NEXT THING STARTS HERE"}
+            </p>
+            <h1>{audience === "organization" ? "Host on HackMate." : "Join HackMate."}</h1>
+            <p className="muted small">
+              {audience === "organization"
+                ? "Create an organizer account, then register your organization."
+                : "Create an account and find your people."}
+            </p>
           </div>
           <form id="auth-form" onSubmit={handleSubmit}>
             <label>
@@ -100,16 +143,18 @@ export default function Signup() {
                 onChange={(event) => setPassword(event.target.value)}
               />
             </label>
-            <SkillsFields
-              id="signup-skills"
-              skillLevels={skillLevels}
-              interests={interests}
-              hobbies={hobbies}
-              onSkillLevelsChange={setSkillLevels}
-              onInterestsChange={setInterests}
-              onHobbiesChange={setHobbies}
-              disabled={submitting}
-            />
+            {audience === "participant" ? (
+              <SkillsFields
+                id="signup-skills"
+                skillLevels={skillLevels}
+                interests={interests}
+                hobbies={hobbies}
+                onSkillLevelsChange={setSkillLevels}
+                onInterestsChange={setInterests}
+                onHobbiesChange={setHobbies}
+                disabled={submitting}
+              />
+            ) : null}
             <label className="checkbox-label">
               <input type="checkbox" required />
               <span>I agree to help build a kind and welcoming community.</span>
@@ -126,7 +171,8 @@ export default function Signup() {
             </p>
           </form>
           <p className="auth-switch">
-            Already have an account? <Link to="/login">Log in</Link>
+            Already have an account?{" "}
+            <Link to={audience === "organization" ? "/login?as=organization" : "/login"}>Log in</Link>
           </p>
         </section>
       </main>

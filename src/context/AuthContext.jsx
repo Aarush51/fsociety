@@ -3,10 +3,34 @@ import { isSupabaseConfigured, supabase, supabaseSetupMessage } from "../lib/sup
 
 const AuthContext = createContext(null);
 
+// Which side of the product the visitor picked on the login or signup page.
+// Stored so a refreshed session keeps its mode; cleared when the user signs out.
+export const AUTH_MODES = { participant: "participant", organization: "organization" };
+const AUTH_MODE_STORAGE_KEY = "hackmate.authMode";
+
+function readStoredMode() {
+  try {
+    const stored = window.localStorage.getItem(AUTH_MODE_STORAGE_KEY);
+    return stored === AUTH_MODES.organization || stored === AUTH_MODES.participant ? stored : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredMode(value) {
+  try {
+    if (value) window.localStorage.setItem(AUTH_MODE_STORAGE_KEY, value);
+    else window.localStorage.removeItem(AUTH_MODE_STORAGE_KEY);
+  } catch {
+    // Storage can be blocked, in which case the mode lasts for this page view.
+  }
+}
+
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(null);
+  const [mode, setMode] = useState(readStoredMode);
   const configError = isSupabaseConfigured ? null : supabaseSetupMessage;
 
   useEffect(() => {
@@ -70,11 +94,28 @@ export function AuthProvider({ children }) {
     return data;
   }, []);
 
+  // Remembers the Participant / Organization choice made on login or signup.
+  const chooseMode = useCallback((next) => {
+    const value = next === AUTH_MODES.organization ? AUTH_MODES.organization : AUTH_MODES.participant;
+    setMode(value);
+    writeStoredMode(value);
+    return value;
+  }, []);
+
   const signOut = useCallback(async () => {
     if (!supabase) throw new Error(supabaseSetupMessage);
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
+    setMode(null);
+    writeStoredMode(null);
   }, []);
+
+  // A signed-out visitor has no mode, so the next login starts from the toggle.
+  useEffect(() => {
+    if (loading || session) return;
+    setMode(null);
+    writeStoredMode(null);
+  }, [loading, session]);
 
   const value = useMemo(
     () => ({
@@ -83,12 +124,14 @@ export function AuthProvider({ children }) {
       loading,
       authError,
       configError,
+      mode,
+      chooseMode,
       signIn,
       signUp,
       signOut,
       isConfigured: isSupabaseConfigured,
     }),
-    [session, loading, authError, configError, signIn, signUp, signOut],
+    [session, loading, authError, configError, mode, chooseMode, signIn, signUp, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

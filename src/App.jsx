@@ -1,5 +1,7 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout";
+import OrganizerRoute from "./components/OrganizerRoute";
+import ParticipantRoute from "./components/ParticipantRoute";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AdminProvider } from "./context/AdminContext";
 import { AuthProvider } from "./context/AuthContext";
@@ -8,6 +10,7 @@ import { ThemeProvider } from "./context/ThemeContext";
 import Admin from "./pages/Admin";
 import Dashboard from "./pages/Dashboard";
 import HackathonDetail from "./pages/HackathonDetail";
+import HackathonRegister from "./pages/HackathonRegister";
 import Hackathons from "./pages/Hackathons";
 import Home from "./pages/Home";
 import IdeaGenerator from "./pages/IdeaGenerator";
@@ -17,6 +20,7 @@ import NotFound from "./pages/NotFound";
 import OrganizationRegister from "./pages/OrganizationRegister";
 import OrganizerDashboard from "./pages/OrganizerDashboard";
 import OrganizerHostHackathon from "./pages/OrganizerHostHackathon";
+import OrganizerRegistrations from "./pages/OrganizerRegistrations";
 import Profile from "./pages/Profile";
 import Signup from "./pages/Signup";
 import Teams from "./pages/Teams";
@@ -33,14 +37,31 @@ export default function App() {
                   <Route index element={<Home />} />
                   <Route path="hackathons" element={<Hackathons />} />
                   <Route path="hackathons/:slug" element={<HackathonDetail />} />
+                  <Route
+                    path="hackathons/:slug/register"
+                    element={
+                      <ProtectedRoute>
+                        <HackathonRegister />
+                      </ProtectedRoute>
+                    }
+                  />
                   <Route path="ideas" element={<IdeaGenerator />} />
-                  <Route path="teams" element={<Teams />} />
+                  <Route
+                    path="teams"
+                    element={
+                      <ProtectedRoute>
+                        <Teams />
+                      </ProtectedRoute>
+                    }
+                  />
                   <Route path="leaderboard" element={<Leaderboard />} />
                   <Route
                     path="dashboard"
                     element={
                       <ProtectedRoute>
-                        <Dashboard />
+                        <ParticipantRoute>
+                          <Dashboard />
+                        </ParticipantRoute>
                       </ProtectedRoute>
                     }
                   />
@@ -56,7 +77,19 @@ export default function App() {
                     path="organizer"
                     element={
                       <ProtectedRoute>
-                        <OrganizerDashboard />
+                        <OrganizerRoute>
+                          <OrganizerDashboard />
+                        </OrganizerRoute>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="organizer/registrations"
+                    element={
+                      <ProtectedRoute>
+                        <OrganizerRoute>
+                          <OrganizerRegistrations />
+                        </OrganizerRoute>
                       </ProtectedRoute>
                     }
                   />
@@ -64,7 +97,9 @@ export default function App() {
                     path="organizer/host"
                     element={
                       <ProtectedRoute>
-                        <OrganizerHostHackathon />
+                        <OrganizerRoute>
+                          <OrganizerHostHackathon />
+                        </OrganizerRoute>
                       </ProtectedRoute>
                     }
                   />

@@ -3,16 +3,25 @@ import { useAdmin } from "../context/AdminContext";
 import { useAuth } from "../context/AuthContext";
 import { useOrganization } from "../context/OrganizationContext";
 import { useTheme } from "../context/ThemeContext";
+import { headerLinks } from "../lib/access";
 import { Arrow, ThemeIcon } from "./Icons";
 
 export default function Header() {
-  const { session, signOut } = useAuth();
+  const { session, mode, signOut } = useAuth();
   const { isAdmin } = useAdmin();
   const { organization } = useOrganization();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const nextTheme = theme === "dark" ? "light" : "dark";
   const signedIn = Boolean(session);
+  // Organizers are only shown the organizer links when they signed in on the
+  // Organization side and actually own an organization they can manage.
+  const links = headerLinks({
+    signedIn,
+    mode,
+    hasOrganization: Boolean(organization),
+    isAdmin,
+  });
 
   const handleLogout = async (event) => {
     event.preventDefault();
@@ -34,14 +43,11 @@ export default function Header() {
           </span>
         </Link>
         <div className="nav-links">
-          <Link to="/hackathons">Hackathons</Link>
-          <Link to="/ideas">Idea generator</Link>
-          <Link to="/teams">Find a team</Link>
-          <Link to="/leaderboard">Leaderboard</Link>
-          <Link to="/dashboard">Dashboard</Link>
-          {organization ? <Link to="/organizer">My organization</Link> : null}
-          {isAdmin ? <Link to="/admin">Admin</Link> : null}
-          <Link to="/profile">Profile</Link>
+          {links.map((link) => (
+            <Link to={link.to} key={link.label}>
+              {link.label}
+            </Link>
+          ))}
           {signedIn ? (
             <a href="#" onClick={handleLogout}>
               Log out

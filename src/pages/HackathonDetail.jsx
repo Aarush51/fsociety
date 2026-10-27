@@ -2,11 +2,13 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Arrow } from "../components/Icons";
 import PageTitle from "../components/PageTitle";
-import RegistrationPanel from "../components/RegistrationPanel";
+import RegistrationCTA from "../components/RegistrationCTA";
 import { events } from "../lib/demoData";
 import { formatEventDate, formatPrice, hackathonCardData } from "../lib/format";
 import { supabase } from "../lib/supabase";
 
+// team_size_max is intentionally absent: the column only exists after the team
+// formation migration, and requesting a missing column fails the whole query.
 const DETAIL_FIELDS =
   "id, slug, title, organizer, description, category, location, prize, registration_deadline, starts_at, ends_at, status, organization_id, venue_name, address, city, maps_url, capacity, price, rules, prize_details";
 
@@ -164,7 +166,7 @@ function DatabaseDetail({ hackathon }) {
             </a>
           </div>
         ) : null}
-        <RegistrationPanel hackathon={hackathon} slug={hackathon.slug} />
+        <RegistrationCTA hackathon={hackathon} slug={hackathon.slug} />
       </aside>
     </section>
   );

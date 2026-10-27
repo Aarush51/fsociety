@@ -1253,7 +1253,7 @@ export default function IdeaGenerator() {
                           : "Generate Roadmap"}
                     </button>
                     <Link className="text-link" to="/teams">
-                      Find a team <Arrow />
+                      My teams <Arrow />
                     </Link>
                   </div>
                 </div>

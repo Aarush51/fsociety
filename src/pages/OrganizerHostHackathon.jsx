@@ -16,6 +16,7 @@ const EMPTY_FORM = {
   city: "",
   maps_url: "",
   capacity: "",
+  team_size_max: "4",
   price: "0",
   starts_at: "",
   ends_at: "",
@@ -61,7 +62,7 @@ export default function OrganizerHostHackathon() {
   }
 
   if (!organization) {
-    return <Navigate to="/organization/register" replace />;
+    return <Navigate to="/" replace />;
   }
 
   const update = (name) => (event) => {
@@ -216,6 +217,24 @@ export default function OrganizerHostHackathon() {
                 onChange={update("capacity")}
                 required
               />
+            </Field>
+            <Field
+              label="Maximum team size"
+              hint="Participants can form teams from Solo (1) up to this size."
+              error={errors.team_size_max}
+            >
+              <select
+                name="team_size_max"
+                value={values.team_size_max}
+                onChange={update("team_size_max")}
+                required
+              >
+                {[2, 3, 4, 5, 6].map((size) => (
+                  <option value={size} key={size}>
+                    {size} people
+                  </option>
+                ))}
+              </select>
             </Field>
             <Field
               label="Entry fee (rupees)"

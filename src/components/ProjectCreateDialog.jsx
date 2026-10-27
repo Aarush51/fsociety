@@ -277,11 +277,11 @@ export default function ProjectCreateDialog({ idea, onClose, onCreated }) {
         {status === "no-team" ? (
           <div className="project-empty">
             <p className="muted small">
-              Only a team leader can create a project. Create a team, or ask your team leader to
-              add you to theirs.
+              Only a team leader can create a project. Register for a hackathon to form a team, or
+              ask your team leader to invite you to theirs.
             </p>
-            <Link className="button button-dark" to="/teams">
-              Find a team <Arrow />
+            <Link className="button button-dark" to="/hackathons">
+              Find a hackathon <Arrow />
             </Link>
           </div>
         ) : null}

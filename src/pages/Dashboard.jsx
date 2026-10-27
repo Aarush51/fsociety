@@ -7,13 +7,14 @@ import PageTitle from "../components/PageTitle";
 import { events } from "../lib/demoData";
 import { formatEventDate, formatNumber, formatReputation, initialsFromName, hackathonCardData } from "../lib/format";
 import { supabase } from "../lib/supabase";
+import { teamCodeFrom } from "../lib/teams";
 
 const HOME_HACKATHON_FIELDS =
   "id, slug, title, organizer, category, location, prize, registration_deadline, starts_at, ends_at, status, venue_name, city, maps_url, capacity, price";
 
 const shortcuts = [
   ["✳", "Explore events", "Find a challenge that excites you.", "/hackathons", "lime"],
-  ["↗", "Meet teammates", "Find people with complementary skills.", "/teams", "blue"],
+  ["↗", "My teams", "See the teams you’re building with.", "/teams", "blue"],
   ["◉", "Update your profile", "Let the community know what you do.", "/profile", "peach"],
 ];
 
@@ -192,7 +193,7 @@ export default function Dashboard() {
               <h2>Build together.</h2>
             </div>
             <Link className="text-link" to="/teams">
-              Find a team <Arrow />
+              My teams <Arrow />
             </Link>
           </div>
           <div id="dashboard-teams" className="dashboard-item-list" aria-live="polite">
@@ -204,14 +205,13 @@ export default function Dashboard() {
               teams.map((team) => (
                 <Link
                   className="dashboard-data-card"
-                  to={`/teams?hackathon=${encodeURIComponent(team.hackathon_slug)}`}
+                  to={`/hackathons/${encodeURIComponent(team.hackathon_slug)}`}
                   key={team.id}
                 >
                   <span>
                     <strong>{team.name}</strong>
-                    <small>
-                      {team.hackathon_title} · {team.role} · {team.member_count}/{team.max_members}{" "}
-                      members
+                    <small>                      {team.hackathon_title} · {team.role} · {team.member_count}/
+                      {team.size ?? team.max_members} members · {teamCodeFrom(team.id)}
                     </small>
                   </span>
                   <Arrow diagonal />
@@ -219,7 +219,7 @@ export default function Dashboard() {
               ))
             ) : (
               <p className="dashboard-empty">
-                You haven’t joined a team yet. Find a hackathon team to build with.
+                You haven’t joined a team yet. Register for a hackathon to form one.
               </p>
             )}
           </div>

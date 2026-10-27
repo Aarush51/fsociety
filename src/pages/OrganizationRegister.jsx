@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
 import { useAuth } from "../context/AuthContext";
@@ -46,6 +46,7 @@ export default function OrganizationRegister() {
   const { user } = useAuth();
   const { organization, loading, refresh } = useOrganization();
   const navigate = useNavigate();
+  const notice = useLocation().state?.notice;
   const [values, setValues] = useState(EMPTY_FORM);
   const [errors, setErrors] = useState({});
   const [message, setMessage] = useState({ text: "", error: false });
@@ -98,6 +99,11 @@ export default function OrganizationRegister() {
           title="Host offline hackathons people remember."
           description="Tell us who you are and where you organize. Every organization is reviewed by hand before its first event goes live."
         />
+        {notice ? (
+          <p className="form-message" role="status" aria-live="polite">
+            {notice}
+          </p>
+        ) : null}
         <form className="org-form" onSubmit={handleSubmit} noValidate>
           <Field label="Who is organizing?" error={errors.org_type}>
             <select name="org_type" value={values.org_type} onChange={update("org_type")} required>

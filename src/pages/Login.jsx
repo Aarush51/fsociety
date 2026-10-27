@@ -1,17 +1,25 @@
 import { useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useOrganization } from "../context/OrganizationContext";
 import PageTitle from "../components/PageTitle";
+import { landingPath } from "../lib/access";
 import { safeRedirectTarget } from "../lib/format";
-import { ORG_EMAIL_MESSAGE, fetchMyOrganization, isAllowedOrgEmail } from "../lib/organizations";
+import { fetchMyOrganization } from "../lib/organizations";
 
 const AUDIENCES = [
   { value: "participant", label: "Participant" },
   { value: "organization", label: "Organization" },
 ];
 
+// Shown on /organization/register when a participant account signs in under the
+// Organization tab without owning an organization yet.
+const NO_ORGANIZATION_NOTICE =
+  "You are signed in as an organization, but this account has no organization yet. Register one below to start hosting hackathons.";
+
 export default function Login() {
-  const { session, loading, signIn, signOut, configError } = useAuth();
+  const { session, loading, signIn, mode, chooseMode, configError } = useAuth();
+  const { organization, loading: organizationLoading } = useOrganization();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirect = searchParams.get("redirect");
@@ -24,38 +32,39 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false);
   const [resolvingOrganization, setResolvingOrganization] = useState(false);
 
-  // While we check for an organization we keep this page mounted, otherwise the
-  // session update would bounce the user to the participant dashboard first.
+  // Already signed in: land where the stored mode lives instead of always
+  // bouncing to the participant dashboard. While a fresh organization login is
+  // being resolved this page stays mounted so the notice keeps its destination.
   if (!loading && session && !resolvingOrganization) {
-    return <Navigate to={safeRedirectTarget(redirect) || "/dashboard"} replace />;
+    const destination =
+      safeRedirectTarget(redirect) ||
+      (mode === "organization" && organizationLoading
+        ? null
+        : landingPath({ mode, hasOrganization: Boolean(organization) }));
+    if (destination) return <Navigate to={destination} replace />;
   }
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     const wantsOrganization = audience === "organization";
+    chooseMode(wantsOrganization ? "organization" : "participant");
     if (wantsOrganization) setResolvingOrganization(true);
     setSubmitting(true);
     setMessage({ text: "", error: false });
     try {
       const data = await signIn(email.trim(), password);
       if (!wantsOrganization) {
-        navigate(safeRedirectTarget(redirect) || "/dashboard");
+        navigate(safeRedirectTarget(redirect) || "/");
         return;
       }
-      // Organizations may only sign in with a company or college address, so a
-      // blocked mailbox is signed straight back out.
-      if (!isAllowedOrgEmail(data?.user?.email)) {
-        try {
-          await signOut();
-        } catch (signOutError) {
-          console.error("Could not sign out after a blocked organization email.", signOutError);
-        }
-        setResolvingOrganization(false);
-        setMessage({ text: ORG_EMAIL_MESSAGE, error: true });
+      // Organization mode: owners go straight to their dashboard, everyone else
+      // is sent (still signed in) to register the organization they came for.
+      const organizationRow = await fetchMyOrganization(data?.user?.id);
+      if (organizationRow) {
+        navigate("/organizer");
         return;
       }
-      const organization = await fetchMyOrganization(data?.user?.id);
-      navigate(organization ? "/organizer" : "/organization/register");
+      navigate("/organization/register", { state: { notice: NO_ORGANIZATION_NOTICE } });
     } catch (error) {
       setResolvingOrganization(false);
       setMessage({
@@ -137,7 +146,10 @@ export default function Login() {
             </p>
           </form>
           <p className="auth-switch">
-            New to HackMate? <Link to="/signup">Create an account</Link>
+            New to HackMate?{" "}
+            <Link to={audience === "organization" ? "/signup?as=organization" : "/signup"}>
+              Create an account
+            </Link>
             {audience === "organization" ? " — then log in here as an organization." : null}
           </p>
         </section>

@@ -13,7 +13,7 @@ export default function Footer() {
         <p>Built for the curious, the ambitious, and the still-figuring-it-out.</p>
         <div className="footer-links">
           <Link to="/hackathons">Hackathons</Link>
-          <Link to="/teams">Find a team</Link>
+          <Link to="/teams">My teams</Link>
           <Link to="/leaderboard">Leaderboard</Link>
         </div>
       </div>

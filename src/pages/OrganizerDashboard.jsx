@@ -29,9 +29,14 @@ function EventRow({ event }) {
           <span>{formatPrice(event.price)}</span>
         </span>
       </span>
-      <Link className="text-link" to={`/hackathons/${encodeURIComponent(event.slug)}`}>
-        View <Arrow diagonal />
-      </Link>
+      <span className="filter-list">
+        <Link className="text-link" to={`/organizer/registrations?event=${encodeURIComponent(event.id)}`}>
+          Registrants <Arrow diagonal />
+        </Link>
+        <Link className="text-link" to={`/hackathons/${encodeURIComponent(event.slug)}`}>
+          View <Arrow diagonal />
+        </Link>
+      </span>
     </article>
   );
 }
@@ -103,7 +108,7 @@ export default function OrganizerDashboard() {
   }
 
   if (!organization) {
-    return <Navigate to="/organization/register" replace />;
+    return <Navigate to="/" replace />;
   }
 
   const approved = organization.status === "approved";

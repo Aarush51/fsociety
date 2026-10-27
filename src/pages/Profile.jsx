@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import FriendCodeInput from "../components/FriendCodeInput";
+import { userIdForUser } from "../lib/userIds";
 import { SkillsFields, cleanHobbies, cleanInterests, cleanSkillLevels } from "../features/teams";
-import { Arrow } from "../components/Icons";
+import { Arrow, CopyIcon } from "../components/Icons";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
 import {
@@ -56,14 +57,27 @@ export default function Profile() {
   const [ledgerError, setLedgerError] = useState(null);
   const [coinLimit, setCoinLimit] = useState(COIN_PAGE_SIZE);
   const [historyKey, setHistoryKey] = useState(0);
-  const [friendCode, setFriendCode] = useState("");
+  // The six-digit ID is derived from the account UUID, so it exists for
+  // everyone immediately; a stored six-digit friend_code wins once it exists.
+  const [friendCode, setFriendCode] = useState(() => userIdForUser(user));
   const [codeStatus, setCodeStatus] = useState({ text: "", error: false });
+  const [copied, setCopied] = useState(false);
   const [friends, setFriends] = useState([]);
   const [skillLevels, setSkillLevels] = useState({});
   const [interests, setInterests] = useState([]);
   const [hobbies, setHobbies] = useState("");
   const [extrasLoaded, setExtrasLoaded] = useState(false);
   const [extrasMessage, setExtrasMessage] = useState({ text: "", error: false });
+
+  // The copy button reads "Copied" for a moment, then returns to "Copy".
+  useEffect(() => {
+    if (!copied) return undefined;
+    const timer = setTimeout(() => {
+      setCopied(false);
+      setCodeStatus({ text: "", error: false });
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [copied]);
 
   useEffect(() => {
     if (!supabase) return undefined;
@@ -76,6 +90,7 @@ export default function Profile() {
         if (!active) return;
         if (error) throw error;
         if (!data) throw new Error("Your profile could not be found.");
+        // Keep the derived ID on screen even if the lookup of extras fails later.
         setForm({
           full_name: data.full_name || "",
           username: data.username || "",
@@ -83,7 +98,7 @@ export default function Profile() {
         });
         setSkills(data.skills || []);
         setStats(data);
-        setFriendCode(data.friend_code || "");
+        setFriendCode(userIdForUser(user, data.friend_code));
         setReady(true);
         setMessage({ text: "", error: false });
       })
@@ -288,12 +303,11 @@ export default function Profile() {
         throw new Error("Clipboard access is unavailable in this browser.");
       }
       await navigator.clipboard.writeText(friendCode);
-      setCodeStatus({
-        text: "Your friend ID is copied — paste it anywhere to share it.",
-        error: false,
-      });
+      setCopied(true);
+      setCodeStatus({ text: "Copied", error: false });
     } catch (error) {
       console.error("Could not copy the friend ID.", error);
+      setCopied(false);
       setCodeStatus({
         text: "Could not copy automatically — select the ID and copy it.",
         error: true,
@@ -330,7 +344,7 @@ export default function Profile() {
               {user?.email || ""}
             </p>
             <div className="friend-code-block">
-              <span className="eyebrow">YOUR FRIEND ID</span>
+              <span className="eyebrow">YOUR ID</span>
               <div className="friend-code-row">
                 <input
                   id="profile-friend-code"
@@ -338,7 +352,7 @@ export default function Profile() {
                   readOnly
                   value={friendCode}
                   placeholder="Not generated yet"
-                  aria-label="Your HackMate friend ID"
+                  aria-label="Your HackMate ID"
                   onFocus={(event) => event.target.select()}
                 />
                 <button
@@ -347,17 +361,19 @@ export default function Profile() {
                   type="button"
                   onClick={handleCopyFriendCode}
                   disabled={!friendCode}
+                  aria-label={copied ? "ID copied" : "Copy your six-digit friend ID"}
                 >
-                  Copy
+                  <CopyIcon />
+                  {copied ? "Copied" : "Copy"}
                 </button>
               </div>
               <p className="muted tiny friend-code-share">
                 {friendCode ? (
                   <>
-                    Share my ID: <strong>{friendCode}</strong> — friends can find you with it.
+                    Share your ID: <strong>{friendCode}</strong> — friends can find you with it.
                   </>
                 ) : (
-                  "Your friend ID isn’t available yet."
+                  "Your ID isn’t available yet."
                 )}
               </p>
               <p
@@ -532,12 +548,13 @@ export default function Profile() {
           </div>
           <div className="friend-code-panel">
             <p className="muted small friend-code-intro">
-              Type a HackMate friend ID to see who it belongs to before you add them.
+              Type a six-digit HackMate ID to see who it belongs to before you add them.
             </p>
             <FriendCodeInput
               id="profile-friend-lookup"
-              label="Their friend ID"
+              label="Their ID"
               confirmLabel="Add friend"
+              addedIds={friends.map((friend) => friend.id)}
               onConfirm={handleFriendFound}
             />
             <div className="friend-code-added" aria-live="polite">

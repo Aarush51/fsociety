@@ -10,6 +10,20 @@ export function Arrow({ diagonal = false }) {
   );
 }
 
+export function CopyIcon() {
+  return (
+    <svg aria-hidden="true" className="icon" viewBox="0 0 20 20" fill="none">
+      <rect x="7" y="7" width="9" height="9" rx="2" stroke="currentColor" strokeWidth="1.5" />
+      <path
+        d="M13 5.5V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 export function ThemeIcon({ theme }) {
   return theme === "dark" ? (
     <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">

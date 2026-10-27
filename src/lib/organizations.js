@@ -329,6 +329,11 @@ export function validateHackathon(values) {
     errors.capacity = "Enter how many people the venue can hold (a whole number).";
   }
 
+  const teamSizeMax = Number(values.team_size_max);
+  if (!Number.isInteger(teamSizeMax) || teamSizeMax < 2 || teamSizeMax > 6) {
+    errors.team_size_max = "Choose a maximum team size from 2 to 6.";
+  }
+
   const price = values.price.trim() === "" ? 0 : Number(values.price);
   if (Number.isNaN(price) || price < 0) {
     errors.price = "Enter the entry fee in rupees, or 0 for a free event.";
@@ -351,10 +356,9 @@ export async function createHackathon({ organization, user, values }) {
   const venue = values.venue_name.trim();
   const city = values.city.trim();
   const prizeDetails = values.prize_details.trim();
+  const teamSizeMax = Math.min(Math.max(Number(values.team_size_max) || 4, 2), 6);
   const price = values.price.trim() === "" ? 0 : Number(values.price);
-  return supabase
-    .from("hackathons")
-    .insert({
+  const payload = {
       slug: slugFromTitle(values.title),
       title: values.title.trim(),
       description: values.description.trim(),
@@ -375,16 +379,25 @@ export async function createHackathon({ organization, user, values }) {
       city,
       maps_url: values.maps_url.trim() ? withHttps(values.maps_url) : null,
       capacity: Number(values.capacity),
+      team_size_max: teamSizeMax,
       price,
       banner_url: values.banner_url.trim() ? withHttps(values.banner_url) : null,
       theme_tags: themes,
       rules: values.rules.trim() || null,
       prize_details: prizeDetails || null,
-    })
-    .select("id, slug")
-    .single()
-    .then(({ data, error }) => {
-      if (error) {
+  };
+
+  // team_size_max arrives with the team formation migration. If this project
+  // has not applied it yet, retry without the column so hosting still works;
+  // the column defaults to 4 once the migration runs.
+  let result = await supabase.from("hackathons").insert(payload).select("id, slug").single();
+  if (result.error && result.error.code === "42703" && /team_size_max/.test(result.error.message || "")) {
+    const { team_size_max: _missingColumn, ...legacyPayload } = payload;
+    result = await supabase.from("hackathons").insert(legacyPayload).select("id, slug").single();
+  }
+
+  const { data, error } = result;
+  if (error) {
         if (error.code === "42501") {
           throw new Error(
             "Only approved organizations can host a hackathon. Check your organization status on the dashboard.",
@@ -402,7 +415,6 @@ export async function createHackathon({ organization, user, values }) {
           throw new Error(`A required field was missing: ${error.message}.`);
         }
         throw new Error(error.message || "Your hackathon could not be saved. Please try again.");
-      }
-      return data;
-    });
+  }
+  return data;
 }
