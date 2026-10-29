@@ -3,15 +3,22 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#f5f6fa">
+    <meta name="theme-color" content="#0B0F19">
     <meta name="description" content="Find a hackathon, meet your future teammates, and build something that matters with HackMate.">
     <title>HackMate — Your people. Your project. Your moment.</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
     <script>
       try {
-        if (localStorage.getItem("hackmate-theme") === "dark") {
+        // First visit gets the dark theme; an explicit "light" choice is kept.
+        if (localStorage.getItem("hackmate-theme") !== "light") {
           document.documentElement.dataset.theme = "dark";
-          document.querySelector('meta[name="theme-color"]').setAttribute("content", "#10131f");
         }
+        document.querySelector('meta[name="theme-color"]').setAttribute(
+          "content",
+          document.documentElement.dataset.theme === "dark" ? "#0B0F19" : "#F4F6FB",
+        );
       } catch (error) {
         // Ignore storage access errors (private mode, disabled cookies).
       }

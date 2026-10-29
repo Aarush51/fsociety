@@ -1,10 +1,12 @@
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAdmin } from "../context/AdminContext";
 import { useAuth } from "../context/AuthContext";
 import { useOrganization } from "../context/OrganizationContext";
 import { useTheme } from "../context/ThemeContext";
 import { headerLinks } from "../lib/access";
 import { Arrow, ThemeIcon } from "./Icons";
+import { Navbar } from "../ui";
 
 export default function Header() {
   const { session, mode, signOut } = useAuth();
@@ -12,6 +14,12 @@ export default function Header() {
   const { organization } = useOrganization();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
   const nextTheme = theme === "dark" ? "light" : "dark";
   const signedIn = Boolean(session);
   // Organizers are only shown the organizer links when they signed in on the
@@ -34,7 +42,7 @@ export default function Header() {
   };
 
   return (
-    <header className="site-header">
+    <Navbar>
       <nav className="nav wrap" aria-label="Main navigation">
         <Link to="/" className="brand" aria-label="HackMate home">
           <span className="brand-mark">H</span>
@@ -42,7 +50,18 @@ export default function Header() {
             hackmate<span className="brand-dot">.</span>
           </span>
         </Link>
-        <div className="nav-links">
+        <button
+          className="nav-menu-button"
+          type="button"
+          aria-label={menuOpen ? "Close navigation menu" : "Open navigation menu"}
+          aria-expanded={menuOpen}
+          aria-controls="primary-navigation"
+          onClick={() => setMenuOpen((open) => !open)}
+        >
+          <span aria-hidden="true" />
+          <span aria-hidden="true" />
+        </button>
+        <div id="primary-navigation" className={`nav-links${menuOpen ? " is-open" : ""}`}>
           {links.map((link) => (
             <Link to={link.to} key={link.label}>
               {link.label}
@@ -72,6 +91,6 @@ export default function Header() {
           </Link>
         )}
       </nav>
-    </header>
+    </Navbar>
   );
 }

@@ -4,11 +4,12 @@ const THEME_STORAGE_KEY = "hackmate-theme";
 const ThemeContext = createContext(null);
 
 function readStoredTheme() {
-  if (typeof window === "undefined") return "light";
+  if (typeof window === "undefined") return "dark";
   try {
-    return window.localStorage.getItem(THEME_STORAGE_KEY) === "dark" ? "dark" : "light";
+    // Dark is the default look; only an explicit "light" choice opts out.
+    return window.localStorage.getItem(THEME_STORAGE_KEY) === "light" ? "light" : "dark";
   } catch {
-    return "light";
+    return "dark";
   }
 }
 
@@ -17,7 +18,7 @@ export function ThemeProvider({ children }) {
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    const color = theme === "dark" ? "#10131f" : "#f5f6fa";
+    const color = theme === "dark" ? "#0B0F19" : "#F4F6FB";
     document.querySelector('meta[name="theme-color"]')?.setAttribute("content", color);
     try {
       window.localStorage.setItem(THEME_STORAGE_KEY, theme);

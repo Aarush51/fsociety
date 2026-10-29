@@ -1,0 +1,23 @@
+/* Pattern Waves (React Bits) — component styles.
+   Kept in this component's own file, the way src/features/teams does it, so the
+   global stylesheet does not grow. The first rule is the React Bits original;
+   .pattern-waves-cover is the HackMate layer used to place it behind content. */
+
+.pattern-waves {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Decorative cover: fills the nearest positioned ancestor, never intercepts
+   pointer events, and sits underneath the real content in that container.
+   The React Bits canvas keeps its own cursor interaction because it listens on
+   window and only reads coordinates — nothing here needs to be clickable. */
+.pattern-waves-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+}

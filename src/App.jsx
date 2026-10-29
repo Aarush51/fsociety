@@ -1,4 +1,4 @@
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout";
 import OrganizerRoute from "./components/OrganizerRoute";
 import ParticipantRoute from "./components/ParticipantRoute";
@@ -46,6 +46,10 @@ export default function App() {
                     }
                   />
                   <Route path="ideas" element={<IdeaGenerator />} />
+                  <Route path="idea-generator" element={<Navigate to="/ideas" replace />} />
+                  <Route path="projects" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="news" element={<Navigate to="/hackathons" replace />} />
+                  <Route path="learn" element={<Navigate to="/ideas" replace />} />
                   <Route
                     path="teams"
                     element={

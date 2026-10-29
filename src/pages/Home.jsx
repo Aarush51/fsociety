@@ -4,7 +4,9 @@ import EventCard from "../components/EventCard";
 import { Arrow } from "../components/Icons";
 import LeaderboardRows from "../components/LeaderboardRows";
 import PageTitle from "../components/PageTitle";
+import PatternWaves from "../components/PatternWaves";
 import SectionHeading from "../components/SectionHeading";
+import { useTheme } from "../context/ThemeContext";
 import { events, leaderboard } from "../lib/demoData";
 import { hackathonCardData } from "../lib/format";
 import { supabase } from "../lib/supabase";
@@ -24,6 +26,7 @@ function builderInitials(name) {
 }
 
 export default function Home() {
+  const { theme } = useTheme();
   const [homeEvents, setHomeEvents] = useState(events);
   const [eventStatus, setEventStatus] = useState("Loading hackathons…");
   const [eventsBusy, setEventsBusy] = useState(true);
@@ -122,6 +125,24 @@ export default function Home() {
       <PageTitle title="HackMate — Your people. Your project. Your moment." />
       <main>
         <section className="hero wrap">
+          {/* Decorative only: a subtle violet silk pattern behind the hero copy.
+              It is not used anywhere else, and never on forms or dense pages. */}
+          <PatternWaves
+            className="pattern-waves-cover"
+            preset="silk"
+            color="#7C5CFF"
+            accent="#2EE6A6"
+            backgroundColor="transparent"
+            /* Dark fades to the edges; light fades to the centre so the copy
+               never sits over a bright dot (keeps muted text above 4.5:1). */
+            fade={theme === "dark" ? "edges" : "center"}
+            fadeSize={0.58}
+            interactive
+            cursorSize={50}
+            cursorStrength={0.35}
+            speed={0.25}
+            opacity={theme === "dark" ? 0.35 : 0.26}
+          />
           <div className="hero-copy">
             <p className="status-pill">
               <span className="online-dot" /> YOUR NEXT BIG THING STARTS HERE
@@ -235,6 +256,20 @@ export default function Home() {
         </section>
 
         <section id="leaderboard" className="section leaderboard-section">
+          {/* Second and last PatternWaves instance: a slow, non-interactive mesh
+              band behind the rankings. Content sits above it via CSS z-index. */}
+          <PatternWaves
+            className="pattern-waves-cover"
+            preset="mesh"
+            color="#7C5CFF"
+            accent="#2EE6A6"
+            backgroundColor="transparent"
+            fade="center"
+            fadeSize={0.78}
+            interactive={false}
+            speed={0.18}
+            opacity={theme === "dark" ? 0.2 : 0.12}
+          />
           <div className="wrap leaderboard-layout">
             <div>
               <p className="eyebrow light-eyebrow">A LITTLE FRIENDLY COMPETITION</p>
