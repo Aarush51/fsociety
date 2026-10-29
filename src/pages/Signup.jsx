@@ -6,6 +6,7 @@ import PageTitle from "../components/PageTitle";
 import { SkillsFields, cleanInterests, cleanSkillLevels } from "../features/teams";
 import useFormDraft from "../hooks/useFormDraft";
 import { safeRedirectTarget } from "../lib/format";
+import { ORG_EMAIL_MESSAGE, isAllowedOrgEmail } from "../lib/organizations";
 
 const AUDIENCES = [
   { value: "participant", label: "Participant" },
@@ -49,6 +50,12 @@ export default function Signup() {
   const handleSubmit = async (event) => {
     event.preventDefault();
     const wantsOrganization = audience === "organization";
+    // Organizer accounts need a company or college address, so a free mailbox is
+    // rejected before the account is ever created.
+    if (wantsOrganization && !isAllowedOrgEmail(email.trim())) {
+      setMessage({ text: ORG_EMAIL_MESSAGE, error: true });
+      return;
+    }
     chooseMode(wantsOrganization ? "organization" : "participant");
     setSubmitting(true);
     setMessage({ text: "", error: false });

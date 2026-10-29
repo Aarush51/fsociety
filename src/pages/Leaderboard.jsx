@@ -4,40 +4,42 @@ import { Arrow } from "../components/Icons";
 import LeaderboardRows from "../components/LeaderboardRows";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
-import { leaderboard } from "../lib/demoData";
-import { leaderboardStatusText, mapLeaderboard } from "../lib/leaderboard";
+import {
+  fetchPointsLeaderboard,
+  mapPointsLeaderboard,
+  pointsLeaderboardStatusText,
+} from "../lib/leaderboard";
 import { supabase } from "../lib/supabase";
 
 export default function Leaderboard() {
-  const [people, setPeople] = useState(leaderboard);
+  const [people, setPeople] = useState([]);
   const [status, setStatus] = useState("Loading leaderboard…");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!supabase) {
-      setStatus("Showing sample members. Configure Supabase to load live rankings.");
+      setPeople([]);
+      setLoading(false);
+      setStatus("Live rankings need Supabase to be configured.");
       return undefined;
     }
 
     let active = true;
-    supabase
-      .rpc("get_public_leaderboard")
-      .then(({ data, error }) => {
+    fetchPointsLeaderboard()
+      .then((rows) => {
         if (!active) return;
-        if (error) throw error;
-        if (!data?.length) {
-          setPeople(leaderboard);
-          setStatus("No live rankings yet; showing sample members.");
-          return;
-        }
-        const mapped = mapLeaderboard(data);
+        const mapped = mapPointsLeaderboard(rows);
         setPeople(mapped);
-        setStatus(leaderboardStatusText(mapped));
+        setStatus(pointsLeaderboardStatusText(mapped));
       })
       .catch((error) => {
         if (!active) return;
-        console.error("Could not load the leaderboard.", error);
-        setPeople(leaderboard);
-        setStatus("Live rankings are unavailable; showing sample members.");
+        console.error("Could not load the points leaderboard.", error);
+        setPeople([]);
+        setStatus("Live rankings are unavailable right now. Please try again later.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
       });
 
     return () => {
@@ -48,12 +50,16 @@ export default function Leaderboard() {
   return (
     <>
       <PageTitle title="Leaderboard | HackMate" />
-      <main className="page-main wrap">
+      <main className="page-main wrap leaderboard-page">
         <PageIntro
           eyebrow="COMMUNITY SPOTLIGHT"
           title="Celebrate the doers."
           description="Every prototype, new skill, and teammate helped along the way counts. Meet some of the builders showing up this month."
         />
+        <section className="leaderboard-stat-grid" aria-label="Leaderboard highlights">
+          <article><span>TOP BUILDER</span><strong>{people[0]?.name || "—"}</strong><small>{people[0]?.points || "0"} points</small></article>
+          <article><span>ACTIVE THIS MONTH</span><strong>{people.length || 0}</strong><small>ranked creators</small></article>
+        </section>
         <div className="leaderboard-page-layout">
           <section className="leaderboard-table">
             <div className="leaderboard-heading">
@@ -71,9 +77,15 @@ export default function Leaderboard() {
             <p className="hackathon-status" role="status" aria-live="polite">
               {status}
             </p>
-            <ol className="rank-list">
-              <LeaderboardRows people={people} />
-            </ol>
+            {!loading && people.length === 0 ? (
+              <p className="dashboard-empty">
+                No points yet. Results published by an organizer put builders on this board.
+              </p>
+            ) : (
+              <ol className="rank-list">
+                <LeaderboardRows people={people} />
+              </ol>
+            )}
           </section>
           <aside className="leaderboard-aside">
             <span className="panel-star">✳</span>

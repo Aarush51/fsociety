@@ -16,6 +16,7 @@ import {
   saveRegistration,
 } from "../lib/registrations";
 import { listHackathonTeams, myTeamFrom } from "../lib/teams";
+import { fetchPendingTeammateReviewCount } from "../lib/teammateReviews";
 import { supabase } from "../lib/supabase";
 
 const REGISTER_FIELDS =
@@ -56,6 +57,7 @@ export default function HackathonRegister() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState({ text: "", error: false });
   const [reloadKey, setReloadKey] = useState(0);
+  const [pendingReviews, setPendingReviews] = useState(0);
 
   // ---- load hackathon by slug -------------------------------------------------
   useEffect(() => {
@@ -96,11 +98,13 @@ export default function HackathonRegister() {
     if (!hackathon?.id || !user?.id) return;
     setLoadError(null);
     try {
-      const [profile, infoData, teamRows] = await Promise.all([
+      const [profile, infoData, teamRows, pendingCount] = await Promise.all([
         fetchOwnProfile(user.id),
         fetchRegistrationInfo(hackathon.id),
         listHackathonTeams(hackathon.id),
+        fetchPendingTeammateReviewCount(),
       ]);
+      setPendingReviews(pendingCount);
       if (profile) {
         setForm({
           full_name: profile.full_name || "",
@@ -122,6 +126,8 @@ export default function HackathonRegister() {
   }, [load, reloadKey]);
 
   const registered = Boolean(info?.my_registration);
+  // A finished hackathon leaves reviews behind; those come before a new signup.
+  const blockedByReviews = pendingReviews > 0 && !registered;
   const myTeam = myTeamFrom(teams, user?.id);
   const effectiveStage = stage || (registered ? "team" : "details");
   const spots = remainingSpots(info);
@@ -285,7 +291,24 @@ export default function HackathonRegister() {
         {message.text}
       </p>
 
-      {effectiveStage === "details" ? (
+      {blockedByReviews ? (
+        <section className="org-form" aria-label="Teammate reviews pending">
+          <p className="eyebrow">REVIEWS PENDING</p>
+          <h2>Review your last teammates first.</h2>
+          <p className="muted small">
+            Every teammate from a finished hackathon has to be reviewed before you can register
+            for a new one. You still owe {pendingReviews}{" "}
+            {pendingReviews === 1 ? "review" : "reviews"}.
+          </p>
+          <div className="org-form-actions">
+            <Link className="button button-dark" to="/huddle?tab=reviews">
+              Open The Huddle · Reviews <Arrow />
+            </Link>
+          </div>
+        </section>
+      ) : null}
+
+      {!blockedByReviews && effectiveStage === "details" ? (
         <form className="org-form" onSubmit={handleDetailsSubmit} noValidate>
           <p className="muted small">
             Tell us the basics — this becomes your participant profile and is what teammates and the
@@ -392,7 +415,7 @@ export default function HackathonRegister() {
         </form>
       ) : null}
 
-      {effectiveStage === "register" ? (
+      {!blockedByReviews && effectiveStage === "register" ? (
         <section className="org-form" aria-label="Confirm registration">
           <p className="eyebrow">CONFIRM YOUR SPOT</p>
           <h2>{hackathon.title}</h2>
@@ -436,7 +459,7 @@ export default function HackathonRegister() {
         </section>
       ) : null}
 
-      {effectiveStage === "team" ? (
+      {!blockedByReviews && effectiveStage === "team" ? (
         <section aria-label="Team formation">
           {registered ? (
             <>

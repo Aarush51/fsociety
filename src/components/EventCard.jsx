@@ -18,6 +18,7 @@ export default function EventCard({ event }) {
         <p className="muted small">{event.organizer}</p>
         <div className="event-meta">
           <div className="event-facts">
+            {event.tier ? <span className="skill">{event.tier}</span> : null}
             <span>{event.date}</span>
             <span>{event.location}</span>
             {event.deadline ? <span>Deadline: {event.deadline}</span> : null}

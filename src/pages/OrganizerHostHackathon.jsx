@@ -1,63 +1,33 @@
 import { useState } from "react";
+import { Link, Navigate } from "react-router-dom";
 import DraftRestoredNote from "../components/DraftRestoredNote";
-import { Navigate } from "react-router-dom";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
 import { useAuth } from "../context/AuthContext";
 import { useOrganization } from "../context/OrganizationContext";
 import useFormDraft from "../hooks/useFormDraft";
-import { createHackathon, validateHackathon } from "../lib/organizations";
+import { createHackathon, HACKATHON_TIERS, validateHackathon } from "../lib/organizations";
 
 const EMPTY_FORM = {
   title: "",
   description: "",
+  theme_tags: "",
   venue_name: "",
+  address: "",
   city: "",
-  starts_at: "",
-  ends_at: "",
-  price: "0",
   capacity: "",
   team_size_max: "4",
+  price: "0",
+  starts_at: "",
+  ends_at: "",
   claimed_tier: "",
-  claimed_tier_reason: "",
+  tier_reason: "",
   expected_participants: "",
   prize_pool: "",
-  // Optional fields, moved into the collapsed "More details" section.
-  address: "",
-  maps_url: "",
-  banner_url: "",
-  theme_tags: "",
-  rules: "",
-  prize_details: "",
 };
 
-// Tier 1 is the highest level, Tier 3 the lowest. The copy is the organizer-facing
-// definition of each level; an admin decides the final tier after review.
-const TIER_OPTIONS = [
-  {
-    value: "1",
-    label: "Tier 1 (highest)",
-    description:
-      "Flagship events, national or multi-college, 300+ participants, prize pool of ₹1,00,000 or more, well-known backing, industry judges, 24+ hours.",
-  },
-  {
-    value: "2",
-    label: "Tier 2",
-    description:
-      "Solid college or company events, 100 to 300 participants, prize pool ₹20,000 to ₹1,00,000, mentors.",
-  },
-  {
-    value: "3",
-    label: "Tier 3",
-    description:
-      "Small, new or club-level events, under 100 participants, small or no prize pool, first edition.",
-  },
-];
-
-const TIER_HELPER =
-  "An admin reviews every hackathon and sets the final tier. Pick the one that honestly fits; your choice does not change your points or ranking.";
-
-const SUBMITTED_MESSAGE = "Submitted for review. It goes live once an admin approves it.";
+const SUBMITTED_MESSAGE =
+  "Your hackathon was submitted. An admin will review the tier you claimed, and it will appear on the public pages once approved.";
 
 function Field({ label, hint, error, children }) {
   return (
@@ -113,8 +83,9 @@ export default function OrganizerHostHackathon() {
     });
   };
 
-  const selectTier = (value) => {
-    setValues((current) => ({ ...current, claimed_tier: value }));
+  // The tier buttons are not inputs, so they clear their own error.
+  const chooseTier = (tier) => {
+    setValues((current) => ({ ...current, claimed_tier: String(tier) }));
     setErrors((current) => {
       if (!current.claimed_tier) return current;
       const next = { ...current };
@@ -122,6 +93,10 @@ export default function OrganizerHostHackathon() {
       return next;
     });
   };
+
+  const selectedTier = HACKATHON_TIERS.find(
+    (tier) => tier.value === Number(values.claimed_tier),
+  );
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -140,7 +115,6 @@ export default function OrganizerHostHackathon() {
       clearDraft();
       setMessage({ text: SUBMITTED_MESSAGE, error: false });
     } catch (error) {
-      // createHackathon keeps the raw Postgres message in here on purpose.
       setMessage({ text: error.message || "Your hackathon could not be saved.", error: true });
     } finally {
       setSubmitting(false);
@@ -152,8 +126,6 @@ export default function OrganizerHostHackathon() {
   if (organization.status !== "approved") {
     return <Navigate to="/organizer" replace />;
   }
-
-  const tierReasonLength = values.claimed_tier_reason.length;
 
   return (
     <>
@@ -174,6 +146,7 @@ export default function OrganizerHostHackathon() {
           />
         ) : null}
         <form className="org-form" onSubmit={handleSubmit} noValidate>
+          <p className="eyebrow">EVENT BASICS</p>
           <Field label="Hackathon title" error={errors.title}>
             <input
               name="title"
@@ -184,11 +157,7 @@ export default function OrganizerHostHackathon() {
               required
             />
           </Field>
-          <Field
-            label="Short description"
-            hint="One or two lines — what people will build and who should join."
-            error={errors.description}
-          >
+          <Field label="Description" error={errors.description}>
             <textarea
               name="description"
               rows="5"
@@ -198,9 +167,20 @@ export default function OrganizerHostHackathon() {
               required
             />
           </Field>
+          <Field
+            label="Theme tags"
+            hint="Comma separated, up to 6 — for example: Climate Tech, Open Innovation."
+          >
+            <input
+              name="theme_tags"
+              placeholder="Climate Tech, Open Innovation"
+              value={values.theme_tags}
+              onChange={update("theme_tags")}
+            />
+          </Field>
 
           <div className="org-form-section">
-            <p className="eyebrow">WHERE AND WHEN</p>
+            <p className="eyebrow">OFFLINE VENUE</p>
             <Field label="Venue name" error={errors.venue_name}>
               <input
                 name="venue_name"
@@ -208,6 +188,17 @@ export default function OrganizerHostHackathon() {
                 placeholder="Main Innovation Hall"
                 value={values.venue_name}
                 onChange={update("venue_name")}
+                required
+              />
+            </Field>
+            <Field label="Full address" error={errors.address}>
+              <textarea
+                name="address"
+                rows="2"
+                maxLength="400"
+                placeholder="College Road, Pune 411001, Maharashtra"
+                value={values.address}
+                onChange={update("address")}
                 required
               />
             </Field>
@@ -221,39 +212,10 @@ export default function OrganizerHostHackathon() {
                 required
               />
             </Field>
-            <Field label="Starts at" error={errors.starts_at}>
-              <input
-                name="starts_at"
-                type="datetime-local"
-                value={values.starts_at}
-                onChange={update("starts_at")}
-                required
-              />
-            </Field>
-            <Field label="Ends at" error={errors.ends_at}>
-              <input
-                name="ends_at"
-                type="datetime-local"
-                value={values.ends_at}
-                onChange={update("ends_at")}
-                required
-              />
-            </Field>
-            <Field
-              label="Entry fee (rupees)"
-              hint="Leave 0 for free — free events skip payment completely."
-              error={errors.price}
-            >
-              <input
-                name="price"
-                type="number"
-                min="0"
-                step="1"
-                placeholder="0"
-                value={values.price}
-                onChange={update("price")}
-              />
-            </Field>
+          </div>
+
+          <div className="org-form-section">
+            <p className="eyebrow">SCHEDULE, SEATS AND PRICE</p>
             <Field label="Capacity" hint="How many people the venue can hold." error={errors.capacity}>
               <input
                 name="capacity"
@@ -284,53 +246,84 @@ export default function OrganizerHostHackathon() {
                 ))}
               </select>
             </Field>
+            <Field
+              label="Entry fee (rupees)"
+              hint="Leave 0 for free — free events skip payment completely."
+              error={errors.price}
+            >
+              <input
+                name="price"
+                type="number"
+                min="0"
+                step="1"
+                placeholder="0"
+                value={values.price}
+                onChange={update("price")}
+              />
+            </Field>
+            <Field label="Starts at" error={errors.starts_at}>
+              <input
+                name="starts_at"
+                type="datetime-local"
+                value={values.starts_at}
+                onChange={update("starts_at")}
+                required
+              />
+            </Field>
+            <Field label="Ends at" error={errors.ends_at}>
+              <input
+                name="ends_at"
+                type="datetime-local"
+                value={values.ends_at}
+                onChange={update("ends_at")}
+                required
+              />
+            </Field>
           </div>
 
           <div className="org-form-section">
-            <p className="eyebrow">TIER</p>
-            <div className="idea-field">
-              <span className="idea-label" id="tier-question">
-                Which tier do you consider your hackathon?
-              </span>
-              <div className="idea-time-options" role="group" aria-labelledby="tier-question">
-                {TIER_OPTIONS.map((option) => (
-                  <button
-                    className="idea-time-option"
-                    type="button"
-                    key={option.value}
-                    aria-pressed={values.claimed_tier === option.value}
-                    onClick={() => selectTier(option.value)}
-                  >
-                    <strong>{option.label}</strong>
-                    <small>{option.description}</small>
-                  </button>
-                ))}
-              </div>
-              {errors.claimed_tier ? (
-                <span className="org-field-error" role="alert">
-                  {errors.claimed_tier}
-                </span>
-              ) : null}
-              <span className="org-field-hint">{TIER_HELPER}</span>
+            <p className="eyebrow">WHICH TIER IS YOUR HACKATHON?</p>
+            <div className="filter-list" role="group" aria-label="Which tier is your hackathon?">
+              {HACKATHON_TIERS.map((tier) => (
+                <button
+                  className={
+                    Number(values.claimed_tier) === tier.value ? "filter-active" : "skill"
+                  }
+                  type="button"
+                  aria-pressed={Number(values.claimed_tier) === tier.value}
+                  key={tier.value}
+                  onClick={() => chooseTier(tier.value)}
+                >
+                  {tier.label}
+                </button>
+              ))}
             </div>
+            {selectedTier ? (
+              <span className="org-field-hint">{selectedTier.example}</span>
+            ) : null}
+            {errors.claimed_tier ? (
+              <span className="org-field-error" role="alert">
+                {errors.claimed_tier}
+              </span>
+            ) : null}
             <Field
-              label="Why this tier?"
-              hint={`${tierReasonLength}/600 characters`}
-              error={errors.claimed_tier_reason}
+              label="Reason for this tier (required)"
+              hint="An admin reviews this before the tier is shown on your event."
+              error={errors.tier_reason}
             >
               <textarea
-                name="claimed_tier_reason"
+                name="tier_reason"
                 rows="3"
-                maxLength="600"
-                placeholder="We run a two-day, multi-college event with 400 participants, industry judges and a ₹1,50,000 prize pool."
-                value={values.claimed_tier_reason}
-                onChange={update("claimed_tier_reason")}
+                maxLength="1000"
+                placeholder="180 colleges, a ₹5,00,000 prize pool and four national sponsors — the reach is national."
+                value={values.tier_reason}
+                onChange={update("tier_reason")}
                 required
               />
             </Field>
             <Field
               label="Expected participants"
-              hint="A rough number. Optional."
+              hint="How many people you expect to take part."
               error={errors.expected_participants}
             >
               <input
@@ -338,14 +331,15 @@ export default function OrganizerHostHackathon() {
                 type="number"
                 min="1"
                 step="1"
-                placeholder="300"
+                placeholder="180"
                 value={values.expected_participants}
                 onChange={update("expected_participants")}
+                required
               />
             </Field>
             <Field
               label="Prize pool (rupees)"
-              hint="Total prize pool. Optional — leave blank for no prize pool."
+              hint="Total prize money — leave 0 if there is no cash prize."
               error={errors.prize_pool}
             >
               <input
@@ -353,83 +347,17 @@ export default function OrganizerHostHackathon() {
                 type="number"
                 min="0"
                 step="1"
-                placeholder="100000"
+                placeholder="50000"
                 value={values.prize_pool}
                 onChange={update("prize_pool")}
+                required
               />
             </Field>
           </div>
 
-          <details className="org-form-section">
-            <summary className="eyebrow">MORE DETAILS (OPTIONAL)</summary>
-            <Field label="Full address" error={errors.address}>
-              <textarea
-                name="address"
-                rows="2"
-                maxLength="400"
-                placeholder="College Road, Pune 411001, Maharashtra"
-                value={values.address}
-                onChange={update("address")}
-              />
-            </Field>
-            <Field
-              label="Google Maps link"
-              hint="Paste the share link so participants can tap Get directions."
-              error={errors.maps_url}
-            >
-              <input
-                name="maps_url"
-                placeholder="https://maps.app.goo.gl/…"
-                value={values.maps_url}
-                onChange={update("maps_url")}
-              />
-            </Field>
-            <Field
-              label="Banner image URL"
-              hint="A public image link (https://…) used at the top of your event."
-              error={errors.banner_url}
-            >
-              <input
-                name="banner_url"
-                placeholder="https://images.example/banner.jpg"
-                value={values.banner_url}
-                onChange={update("banner_url")}
-              />
-            </Field>
-            <Field
-              label="Theme tags"
-              hint="Comma separated, up to 6 — for example: Climate Tech, Open Innovation."
-            >
-              <input
-                name="theme_tags"
-                placeholder="Climate Tech, Open Innovation"
-                value={values.theme_tags}
-                onChange={update("theme_tags")}
-              />
-            </Field>
-            <Field label="Rules" hint="Code of conduct, what to bring, judging rules.">
-              <textarea
-                name="rules"
-                rows="4"
-                placeholder="Teams of up to 4. Bring your own laptop and charger."
-                value={values.rules}
-                onChange={update("rules")}
-              />
-            </Field>
-            <Field label="Prize details" hint="Prize pool, categories and any goodies.">
-              <textarea
-                name="prize_details"
-                rows="3"
-                placeholder="₹50,000 pool — ₹25,000 winner, ₹15,000 runner-up, ₹10,000 best beginner team."
-                value={values.prize_details}
-                onChange={update("prize_details")}
-              />
-            </Field>
-          </details>
-
           <div className="org-form-actions">
             <button className="button button-dark" type="submit" disabled={submitting}>
-              {submitting ? "Submitting…" : "Submit for review"}
+              {submitting ? "Publishing…" : "Publish hackathon"}
             </button>
             <Link className="text-link" to="/organizer">
               Back to dashboard

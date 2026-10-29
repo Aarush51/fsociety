@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { initialsFromName, shortName } from "../lib/format";
 import { FRIEND_CODE_HINT, isFriendCode, normalizeFriendCodeInput } from "../lib/friendCodes";
+import { isFriendSchemaError, logFriendError } from "../lib/friends";
 import { supabase, supabaseSetupMessage } from "../lib/supabase";
 
 /**
@@ -85,9 +86,12 @@ export default function FriendCodeInput({
       setFound(data);
       setMessage({ text: "", error: false });
     } catch (error) {
-      console.error("Could not look up that friend ID.", error);
+      // Always log the raw Supabase error (message + code + details + hint).
+      logFriendError("Could not look up that friend ID.", error);
       setMessage({
-        text: error.message || "Could not look up that friend ID. Try again.",
+        text: isFriendSchemaError(error)
+          ? "Friend-ID lookup isn't set up correctly on the database yet. Run the friends migrations in Supabase, then try again."
+          : error.message || "Could not look up that friend ID. Try again.",
         error: true,
       });
     } finally {

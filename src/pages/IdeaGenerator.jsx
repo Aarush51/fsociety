@@ -739,7 +739,7 @@ export default function IdeaGenerator() {
   return (
     <>
       <PageTitle title="Idea generator | HackMate" />
-      <main className="page-main wrap">
+      <main className="page-main wrap idea-generator-page">
         <PageIntro
           eyebrow="AI HACKATHON IDEA GENERATOR"
           title="Start with a theme. Leave with a direction."

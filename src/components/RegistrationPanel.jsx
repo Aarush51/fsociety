@@ -20,6 +20,7 @@ import {
   registerForHackathon,
   registeredCount,
 } from "../lib/registrations";
+import { fetchPendingTeammateReviewCount } from "../lib/teammateReviews";
 import { sizeRuleMessage, teamSizeChoices, teamSizeName } from "../lib/teamSizes";
 import { startRegistrationPayment } from "../features/payments/startRegistrationPayment";
 
@@ -54,6 +55,26 @@ export default function RegistrationPanel({ hackathon, slug }) {
   const [skillCount, setSkillCount] = useState(null);
   // "Pick from friends": one click adds a friend instead of retyping their ID.
   const [friendPicker, setFriendPicker] = useState({ loading: false, error: "", friends: [] });
+  // Reviews owed for a finished hackathon block a new registration.
+  const [pendingReviews, setPendingReviews] = useState(0);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setPendingReviews(0);
+      return undefined;
+    }
+    let active = true;
+    fetchPendingTeammateReviewCount()
+      .then((count) => {
+        if (active) setPendingReviews(count);
+      })
+      .catch(() => {
+        if (active) setPendingReviews(0);
+      });
+    return () => {
+      active = false;
+    };
+  }, [user?.id]);
 
   const hackathonId = hackathon?.id;
   // The RPC returns the authoritative price, capacity and team size; fall back
@@ -340,6 +361,16 @@ export default function RegistrationPanel({ hackathon, slug }) {
               Your team could not be loaded. Make sure the team SQL migration has been applied.
             </p>
           ) : null}
+        </>
+      ) : pendingReviews > 0 ? (
+        <>
+          <p className="registration-status" data-error="true">
+            Finish your teammate reviews from your last hackathon before registering. You still
+            owe {pendingReviews} {pendingReviews === 1 ? "review" : "reviews"}.
+          </p>
+          <Link className="button button-dark button-full" to="/huddle?tab=reviews">
+            Open The Huddle · Reviews <Arrow />
+          </Link>
         </>
       ) : isFull(info) ? (
         <button className="button button-dark button-full" type="button" disabled>

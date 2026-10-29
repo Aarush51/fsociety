@@ -2,22 +2,17 @@ import { useEffect, useMemo, useState } from "react";
 import EventCard from "../components/EventCard";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
+import { demoHackathons } from "../lib/demoData";
 import useHackathonRatings from "../hooks/useHackathonRatings";
 import { hackathonCardData } from "../lib/format";
+import { groupHackathonsByTier, tierLabel } from "../lib/organizations";
 import { supabase } from "../lib/supabase";
 
 const HACKATHON_FIELDS =
-  "id, slug, title, organizer, description, category, location, prize, registration_deadline, starts_at, ends_at, status, approval_status, tier, venue_name, city, maps_url, capacity, price";
-
-const TIER_SECTIONS = [
-  { tier: 1, fallbackLabel: "Tier 1 (highest)" },
-  { tier: 2, fallbackLabel: "Tier 2" },
-  { tier: 3, fallbackLabel: "Tier 3" },
-];
+  "id, slug, title, organizer, description, category, location, prize, registration_deadline, starts_at, ends_at, status, approval_status, approved_tier, venue_name, city, maps_url, capacity, price";
 
 export default function Hackathons() {
   const [rows, setRows] = useState(null);
-  const [tierSettings, setTierSettings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [sourceLabel, setSourceLabel] = useState("");
@@ -28,10 +23,8 @@ export default function Hackathons() {
 
   useEffect(() => {
     if (!supabase) {
-      // Samples are not approved database rows, so do not show them on Discover.
-      setRows([]);
-      setTierSettings([]);
-      setSourceLabel(" Supabase is not configured; live hackathons cannot be loaded.");
+      setRows(demoHackathons);
+      setSourceLabel(" Showing sample hackathons. Configure Supabase to load live events.");
       setLoading(false);
       setFailed(false);
       return undefined;
@@ -40,36 +33,27 @@ export default function Hackathons() {
     let active = true;
     setLoading(true);
     setFailed(false);
-    Promise.all([
-      supabase
-        .from("hackathons")
-        .select(HACKATHON_FIELDS)
-        .eq("approval_status", "approved")
-        .in("status", ["upcoming", "active"]),
-      supabase
-        .from("tier_settings")
-        .select("tier, label, description")
-        .order("tier", { ascending: true }),
-    ])
-      .then(([hackathonResult, tierResult]) => {
+    supabase
+      .from("hackathons")
+      .select(HACKATHON_FIELDS)
+      .in("status", ["upcoming", "active"])
+      .eq("approval_status", "approved")
+      .then(({ data, error }) => {
         if (!active) return;
-        if (hackathonResult.error) throw hackathonResult.error;
-        if (tierResult.error) throw tierResult.error;
-        setTierSettings(tierResult.data || []);
-        if (hackathonResult.data?.length) {
-          setRows(hackathonResult.data);
+        if (error) throw error;
+        if (data?.length) {
+          setRows(data);
           setSourceLabel("");
         } else {
-          setRows([]);
-          setSourceLabel("");
+          setRows(demoHackathons);
+          setSourceLabel(" No live events yet; showing sample hackathons.");
         }
       })
       .catch((error) => {
         if (!active) return;
         console.error("Could not load hackathons from Supabase.", error);
-        setRows([]);
-        setTierSettings([]);
-        setSourceLabel(" Live events are unavailable.");
+        setRows(demoHackathons);
+        setSourceLabel(" Live events are unavailable; showing sample hackathons.");
         setFailed(true);
       })
       .finally(() => {
@@ -116,26 +100,9 @@ export default function Hackathons() {
       });
   }, [rows, search, selectedTheme, sortDirection]);
 
-  // Search, theme filtering and deadline ordering happen once above, so every
-  // section uses exactly the same result set. tier is the admin-assigned column;
-  // claimed_tier is deliberately neither selected nor consulted here.
-  const grouped = useMemo(() => {
-    const byTier = new Map(TIER_SECTIONS.map(({ tier }) => [tier, []]));
-    const more = [];
-    filtered.forEach((event) => {
-      const tier = Number(event.tier);
-      if (byTier.has(tier)) byTier.get(tier).push(event);
-      else more.push(event);
-    });
-    return [
-      ...TIER_SECTIONS.map((section) => ({
-        ...section,
-        settings: tierSettings.find((setting) => Number(setting.tier) === section.tier),
-        events: byTier.get(section.tier),
-      })),
-      { tier: null, fallbackLabel: "More hackathons", settings: null, events: more },
-    ];
-  }, [filtered, tierSettings]);
+  // One bucket per approved tier, then "More hackathons".
+  const sections = useMemo(() => groupHackathonsByTier(filtered), [filtered]);
+
   const ratings = useHackathonRatings(filtered);
 
   const statusText = loading
@@ -149,7 +116,7 @@ export default function Hackathons() {
   return (
     <>
       <PageTitle title="Hackathons | HackMate" />
-      <main className="page-main wrap">
+      <main className="page-main wrap hackathons-page">
         <PageIntro
           eyebrow="FIND YOUR NEXT CHALLENGE"
           title="Good ideas start with showing up."
@@ -214,29 +181,29 @@ export default function Hackathons() {
           ) : null}
         </p>
         <div id="hackathon-results" aria-busy={loading}>
-          {grouped.map((section) => {
-            if (!section.events.length) return null;
-            const heading = section.settings?.label || section.fallbackLabel;
-            return (
+          {sections.map((section) =>
+            section.events.length ? (
               <section
-                className="hackathon-tier-section"
-                aria-labelledby={`hackathon-tier-${section.tier ?? "more"}`}
-                key={section.tier ?? "more"}
+                className="dashboard-data-section"
+                aria-label={`${section.title} section`}
+                key={section.key}
               >
-                <div className="section-heading">
+                <div className="section-heading dashboard-heading">
                   <div>
-                    <p className="eyebrow">HACKATHONS</p>
-                    <h2 id={`hackathon-tier-${section.tier ?? "more"}`}>{heading}</h2>
-                    {section.settings?.description ? (
-                      <p className="muted section-description">{section.settings.description}</p>
-                    ) : null}
+                    <p className="eyebrow">{section.eyebrow}</p>
+                    <h2>{section.title}</h2>
                   </div>
+                  <p className="muted small">
+                    {section.events.length}{" "}
+                    {section.events.length === 1 ? "hackathon" : "hackathons"} · {section.description}
+                  </p>
                 </div>
                 <div className="event-grid">
                   {section.events.map((event) => (
                     <EventCard
                       event={{
                         ...hackathonCardData(event),
+                        tier: tierLabel(event.approved_tier),
                         rating: ratings[event.id],
                       }}
                       key={event.id}
@@ -244,8 +211,8 @@ export default function Hackathons() {
                   ))}
                 </div>
               </section>
-            );
-          })}
+            ) : null,
+          )}
         </div>
         <div className="dark-callout">
           <div>

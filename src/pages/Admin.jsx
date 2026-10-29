@@ -7,40 +7,30 @@ import StarRating from "../components/StarRating";
 import { useAdmin } from "../context/AdminContext";
 import {
   loadEventReviewsForModeration,
-  loadHackathonsForReview,
+  loadFlaggedUsers,
+  loadHackathonsForTierReview,
   loadOrganizationsForReview,
-  loadTierSettings,
   reviewHackathon,
   reviewOrganization,
   setEventReviewHidden,
 } from "../lib/admin";
-import { formatEventDate, formatPrice } from "../lib/format";
-import { organizationTypeLabel } from "../lib/organizations";
+import { formatEventDate, formatNumber } from "../lib/format";
+import { HACKATHON_TIERS, organizationTypeLabel, tierLabel } from "../lib/organizations";
 
 const TABS = [
   { value: "pending", label: "Pending" },
   { value: "approved", label: "Approved" },
   { value: "rejected", label: "Rejected" },
+  { value: "tiers", label: "Tiers" },
   { value: "reviews", label: "Reviews" },
+  { value: "flagged", label: "Flagged users" },
 ];
 
 const EMPTY_COPY = {
   pending: "Nothing is waiting for review right now.",
   approved: "No organizations have been approved yet.",
   rejected: "No organizations have been rejected yet.",
-};
-
-// Hackathon review uses the same three states, but "approved" is shown as Live.
-const HACKATHON_TABS = [
-  { value: "pending", label: "Pending" },
-  { value: "approved", label: "Live" },
-  { value: "rejected", label: "Rejected" },
-];
-
-const EMPTY_HACKATHON_COPY = {
-  pending: "No hackathons are waiting for review.",
-  approved: "No hackathons are live yet.",
-  rejected: "No hackathons have been rejected yet.",
+  tiers: "No hackathon has claimed a tier yet.",
 };
 
 function Fact({ label, children }) {
@@ -88,6 +78,135 @@ function ReviewCard({ review, busy, onToggle }) {
           Open reviews <Arrow diagonal />
         </Link>
       </div>
+    </article>
+  );
+}
+
+function TierCard({ event, busy, onDecide }) {
+  const approved = Number(event.approved_tier) || null;
+  const claimed = Number(event.claimed_tier) || null;
+  // The picker starts on the organizer's claim; the admin can move it.
+  const [tier, setTier] = useState(claimed || 3);
+  const prizePool =
+    event.prize_pool === null || event.prize_pool === undefined
+      ? "—"
+      : `₹${formatNumber(event.prize_pool)}`;
+  const status = event.approval_status || "pending";
+  const badgeClass =
+    status === "approved"
+      ? "admin-badge-approved"
+      : status === "rejected"
+        ? "admin-badge-rejected"
+        : "admin-badge-pending";
+  return (
+    <article className="admin-card">
+      <header className="admin-card-head">
+        <div>
+          <p className="eyebrow">
+            {[event.organizer, event.city].filter(Boolean).join(" · ") || "Hackathon"} · starts{" "}
+            {formatEventDate(event.starts_at)}
+          </p>
+          <h2>{event.title}</h2>
+        </div>
+        <span className={`admin-badge ${badgeClass}`}>{
+          approved ? `${status} · ${tierLabel(approved)}` : status
+        }</span>
+      </header>
+
+      <dl className="admin-facts">
+        <Fact label="Claimed tier">{tierLabel(claimed) || "Not claimed"}</Fact>
+        <Fact label="Approved tier">{approved ? tierLabel(approved) : "—"}</Fact>
+        <Fact label="Expected participants">{event.expected_participants ?? "—"}</Fact>
+        <Fact label="Prize pool">{prizePool}</Fact>
+      </dl>
+
+      <p className="admin-description">
+        <strong>Reason for claimed tier:</strong> {event.tier_reason || "No reason given."}
+      </p>
+
+      <div className="filter-list" role="group" aria-label={`Approve ${event.title} as`}>
+        {HACKATHON_TIERS.map((option) => (
+          <button
+            className={tier === option.value ? "filter-active" : "skill"}
+            type="button"
+            disabled={busy}
+            aria-pressed={tier === option.value}
+            key={option.value}
+            onClick={() => setTier(option.value)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+      <span className="org-field-hint">
+        {claimed
+          ? `Defaults to the organizer's claim (${tierLabel(claimed)}). Pick the tier you are approving.`
+          : "The organizer claimed no tier. Pick the tier you are approving."}
+      </span>
+
+      <div className="admin-actions">
+        <button
+          className="button button-dark"
+          type="button"
+          disabled={busy}
+          onClick={() => onDecide(event, "approved", tier)}
+        >
+          {busy ? "Saving…" : `Approve as ${tierLabel(tier)}`}
+        </button>
+        <button
+          className="button button-outline"
+          type="button"
+          disabled={busy}
+          onClick={() => onDecide(event, "rejected", null)}
+        >
+          Reject
+        </button>
+      </div>
+    </article>
+  );
+}
+
+// One member reported by two or more different people: the count, every reason,
+// and who filed each report (with their short context and the date).
+function FlaggedCard({ flagged }) {
+  const reporters = Array.isArray(flagged.reporters) ? flagged.reporters : [];
+  const reasons = Array.isArray(flagged.reasons) ? flagged.reasons : [];
+  const reporterCount = Number(flagged.reporter_count) || 0;
+  const reportCount = Number(flagged.report_count) || 0;
+
+  return (
+    <article className="admin-card">
+      <header className="admin-card-head">
+        <div>
+          <p className="eyebrow">
+            REPORTED BY {reporterCount} {reporterCount === 1 ? "PERSON" : "PEOPLE"} · ID{" "}
+            {flagged.friend_code || "—"}
+          </p>
+          <h2>{flagged.full_name || "A HackMate member"}</h2>
+        </div>
+        <span className="admin-badge admin-badge-rejected">
+          {reportCount} {reportCount === 1 ? "report" : "reports"}
+        </span>
+      </header>
+
+      <p className="admin-description">
+        <strong>Reasons:</strong> {reasons.length ? reasons.join(" · ") : "No reason recorded."}
+      </p>
+
+      <dl className="admin-facts">
+        {reporters.map((entry, index) => (
+          <Fact
+            key={`${entry.reporter_id}-${index}`}
+            label={`${entry.reporter_name} · ${formatEventDate(entry.created_at, {
+              dateStyle: "medium",
+              timeStyle: "short",
+            })}`}
+          >
+            {entry.reason}
+            {entry.context ? <span className="muted tiny"> — {entry.context}</span> : null}
+          </Fact>
+        ))}
+      </dl>
     </article>
   );
 }
@@ -232,321 +351,6 @@ function OrganizationCard({ organization, busy, onApprove, onReject }) {
   );
 }
 
-const tierName = (tier) => `Tier ${tier}${Number(tier) === 1 ? " (highest)" : ""}`;
-
-// One hackathon in the review queue. Collapsed until opened, then it shows every
-// detail the organizer entered, the organization behind it, and the decision
-// panel. Tier 1 is the highest level, so "lower than the claim" means a bigger
-// number than claimed_tier.
-function HackathonCard({ hackathon, organization, earlierEvents, tierSettings, busy, onReview }) {
-  const [open, setOpen] = useState(false);
-  const [tierChoice, setTierChoice] = useState(hackathon.tier ? String(hackathon.tier) : "");
-  const [note, setNote] = useState("");
-  const [rejecting, setRejecting] = useState(false);
-  const [reason, setReason] = useState("");
-  const [error, setError] = useState("");
-
-  const claimedTier = Number(hackathon.claimed_tier) || null;
-  const chosenTier = Number(tierChoice) || null;
-  const differs = claimedTier !== null && chosenTier !== null && chosenTier !== claimedTier;
-  const lowerThanClaim = differs && chosenTier > claimedTier;
-  const prizePool = Number(hackathon.prize_pool) || 0;
-  const expected = Number(hackathon.expected_participants) || null;
-  const dates = `${formatEventDate(hackathon.starts_at)} – ${formatEventDate(hackathon.ends_at)}`;
-  const venue =
-    [hackathon.venue_name, hackathon.city].filter(Boolean).join(", ") || "Venue to be announced";
-
-  const approve = async () => {
-    if (!chosenTier) {
-      setError("Pick a tier before approving.");
-      return;
-    }
-    if (lowerThanClaim && !note.trim()) {
-      setError(`${tierName(chosenTier)} is lower than the claimed ${tierName(claimedTier)}. Add a note explaining why.`);
-      return;
-    }
-    setError("");
-    const saved = await onReview(hackathon, { decision: "approve", tier: chosenTier, note });
-    if (saved) {
-      setNote("");
-      setOpen(false);
-    }
-  };
-
-  const submitReject = async (event) => {
-    event.preventDefault();
-    if (!reason.trim()) {
-      setError("Add a reason before rejecting a hackathon.");
-      return;
-    }
-    setError("");
-    const saved = await onReview(hackathon, { decision: "reject", note: reason });
-    if (saved) {
-      setReason("");
-      setRejecting(false);
-      setOpen(false);
-    }
-  };
-
-  return (
-    <article className="admin-card">
-      <header className="admin-card-head">
-        <div>
-          <p className="eyebrow">
-            {organization ? organization.org_name : hackathon.organizer || "Organization"} ·{" "}
-            {hackathon.city || "City to be announced"}
-          </p>
-          <h2>{hackathon.title}</h2>
-        </div>
-        <span className={`admin-badge admin-badge-${hackathon.approval_status}`}>
-          {hackathon.approval_status === "approved"
-            ? `Live${hackathon.tier ? ` · Tier ${hackathon.tier}` : ""}`
-            : hackathon.approval_status}
-        </span>
-      </header>
-
-      <dl className="admin-facts">
-        <Fact label="When">{dates}</Fact>
-        <Fact label="Venue">{venue}</Fact>
-        <Fact label="Claimed tier">{claimedTier ? tierName(claimedTier) : "Not claimed"}</Fact>
-        <Fact label="Admin tier">{hackathon.tier ? tierName(hackathon.tier) : "Not set"}</Fact>
-      </dl>
-
-      <div className="admin-actions">
-        <button
-          className="button button-outline"
-          type="button"
-          onClick={() => setOpen((value) => !value)}
-          disabled={busy}
-        >
-          {open
-            ? "Close review"
-            : hackathon.approval_status === "approved"
-              ? "Re-tier hackathon"
-              : "Open review"}
-        </button>
-        {hackathon.approval_status === "approved" ? (
-          <a
-            className="text-link"
-            href={`/hackathons/${encodeURIComponent(hackathon.slug)}`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            Open event page <Arrow diagonal />
-          </a>
-        ) : null}
-      </div>
-
-      {open ? (
-        <>
-          <dl className="admin-facts">
-            <Fact label="Organization">{organization ? organization.org_name : "—"}</Fact>
-            <Fact label="Organization status">{organization ? organization.status : "—"}</Fact>
-            <Fact label="Organization city">{organization ? organization.city : "—"}</Fact>
-            <Fact label="Category">{hackathon.category || "—"}</Fact>
-            <Fact label="Full address">{hackathon.address || "—"}</Fact>
-            <Fact label="Maps link">
-              {hackathon.maps_url ? (
-                <a href={hackathon.maps_url} target="_blank" rel="noreferrer">
-                  Open map
-                </a>
-              ) : (
-                "—"
-              )}
-            </Fact>
-            <Fact label="Poster">
-              {hackathon.banner_url ? (
-                <a href={hackathon.banner_url} target="_blank" rel="noreferrer">
-                  Open poster
-                </a>
-              ) : (
-                "—"
-              )}
-            </Fact>
-            <Fact label="Registration deadline">
-              {hackathon.registration_deadline
-                ? formatEventDate(hackathon.registration_deadline, {
-                    dateStyle: "medium",
-                    timeStyle: "short",
-                  })
-                : "—"}
-            </Fact>
-            <Fact label="Entry fee">
-              {Number(hackathon.price) > 0 ? formatPrice(hackathon.price) : "Free"}
-            </Fact>
-            <Fact label="Capacity">
-              {hackathon.capacity ? `${hackathon.capacity} people` : "—"}
-            </Fact>
-            <Fact label="Max team size">{hackathon.team_size_max || "—"}</Fact>
-            <Fact label="Theme tags">
-              {hackathon.theme_tags?.length ? hackathon.theme_tags.join(", ") : "—"}
-            </Fact>
-            <Fact label="Expected participants">
-              {expected ? `${expected} people` : "—"}
-            </Fact>
-            <Fact label="Prize pool">
-              {prizePool > 0 ? formatPrice(prizePool) : "No prize pool"}
-            </Fact>
-            <Fact label="Earlier hackathons">
-              {earlierEvents.length
-                ? `${earlierEvents.length} from this organization`
-                : "First event from this organization"}
-            </Fact>
-          </dl>
-
-          {earlierEvents.length ? (
-            <span className="organizer-event-meta">
-              {earlierEvents.map((event) => (
-                <span key={event.id}>
-                  {event.title} ·{" "}
-                  {event.approval_status === "approved"
-                    ? `Live${event.tier ? ` · Tier ${event.tier}` : ""}`
-                    : event.approval_status}
-                </span>
-              ))}
-            </span>
-          ) : null}
-
-          <p className="admin-description">{hackathon.description}</p>
-          <p className="admin-description">
-            <strong>Why this tier:</strong> {hackathon.claimed_tier_reason || "No reason given."}
-          </p>
-          {hackathon.rules ? (
-            <p className="admin-description">
-              <strong>Rules:</strong> {hackathon.rules}
-            </p>
-          ) : null}
-          {hackathon.prize_details ? (
-            <p className="admin-description">
-              <strong>Prize details:</strong> {hackathon.prize_details}
-            </p>
-          ) : null}
-          {hackathon.tier && hackathon.tier_note ? (
-            <p className="admin-description">
-              <strong>Current tier note:</strong> {hackathon.tier_note}
-            </p>
-          ) : null}
-          {hackathon.review_note ? (
-            <p className="admin-review-note">
-              <strong>Review note:</strong> {hackathon.review_note}
-            </p>
-          ) : null}
-
-          <div className="admin-reject">
-            <label id={`tier-choice-${hackathon.id}`}>Approve as (required)</label>
-            <div
-              className="idea-time-options"
-              role="group"
-              aria-labelledby={`tier-choice-${hackathon.id}`}
-            >
-              {tierSettings.map((tier) => (
-                <button
-                  className="idea-time-option"
-                  type="button"
-                  key={tier.tier}
-                  aria-pressed={tierChoice === String(tier.tier)}
-                  onClick={() => {
-                    setTierChoice(String(tier.tier));
-                    setError("");
-                  }}
-                >
-                  <strong>{tier.label}</strong>
-                  <small>{(tier.examples || []).join(" · ")}</small>
-                </button>
-              ))}
-            </div>
-            <span className="org-field-hint">
-              {claimedTier
-                ? `The organizer claimed ${tierName(claimedTier)}${
-                    hackathon.claimed_tier_reason ? `: “${hackathon.claimed_tier_reason}”` : ""
-                  }${expected ? ` · ${expected} participants` : ""}${
-                    prizePool > 0 ? ` · ${formatPrice(prizePool)} prize pool` : " · no prize pool"
-                  }.`
-                : "The organizer did not claim a tier."}
-            </span>
-            {differs ? (
-              <p className="notice">
-                You picked {tierName(chosenTier)} —{" "}
-                {lowerThanClaim
-                  ? `lower than the claimed ${tierName(claimedTier)}. A note is required.`
-                  : `higher than the claimed ${tierName(claimedTier)}.`}
-              </p>
-            ) : null}
-            <label htmlFor={`review-note-${hackathon.id}`}>
-              Note for the organizer ({lowerThanClaim ? "required" : "optional"})
-            </label>
-            <textarea
-              id={`review-note-${hackathon.id}`}
-              rows="2"
-              maxLength="1000"
-              value={note}
-              onChange={(event) => {
-                setNote(event.target.value);
-                if (error) setError("");
-              }}
-              placeholder="For example: 400 participants and industry judges, so Tier 2."
-            />
-            {error ? (
-              <span className="org-field-error" role="alert">
-                {error}
-              </span>
-            ) : null}
-            <div className="admin-actions">
-              <button className="button button-dark" type="button" onClick={approve} disabled={busy}>
-                {busy
-                  ? "Saving…"
-                  : hackathon.approval_status === "approved"
-                    ? "Save tier"
-                    : "Confirm approve"}
-              </button>
-              <button
-                className="button button-outline"
-                type="button"
-                onClick={() => setRejecting((value) => !value)}
-                disabled={busy}
-              >
-                {rejecting ? "Cancel reject" : "Reject"}
-              </button>
-            </div>
-          </div>
-
-          {rejecting ? (
-            <form className="admin-reject" onSubmit={submitReject} noValidate>
-              <label htmlFor={`reject-event-${hackathon.id}`}>Reason for rejection (required)</label>
-              <textarea
-                id={`reject-event-${hackathon.id}`}
-                rows="3"
-                maxLength="1000"
-                value={reason}
-                onChange={(event) => {
-                  setReason(event.target.value);
-                  if (error) setError("");
-                }}
-                placeholder="For example: the venue is not confirmed and the dates clash with another event."
-              />
-              <div className="admin-actions">
-                <button className="button button-dark" type="submit" disabled={busy}>
-                  {busy ? "Saving…" : "Reject hackathon"}
-                </button>
-                <button
-                  className="text-link"
-                  type="button"
-                  onClick={() => {
-                    setRejecting(false);
-                    setError("");
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          ) : null}
-        </>
-      ) : null}
-    </article>
-  );
-}
-
 export default function Admin() {
   const { isAdmin, loading: adminLoading } = useAdmin();
   const [organizations, setOrganizations] = useState(null);
@@ -555,53 +359,30 @@ export default function Admin() {
   const [tab, setTab] = useState("pending");
   const [busyId, setBusyId] = useState(null);
   const [message, setMessage] = useState({ text: "", error: false });
-  // Hackathon review has its own queue, tabs and messages so a failure in one
-  // section never blanks the other.
-  const [hackathons, setHackathons] = useState(null);
-  const [tierSettings, setTierSettings] = useState([]);
-  const [hackathonTab, setHackathonTab] = useState("pending");
-  const [hackathonError, setHackathonError] = useState(null);
-  const [hackathonMessage, setHackathonMessage] = useState({ text: "", error: false });
   const [eventReviews, setEventReviews] = useState(null);
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [reviewsError, setReviewsError] = useState(null);
   const [togglingId, setTogglingId] = useState(null);
+  const [tierEvents, setTierEvents] = useState(null);
+  const [tiersLoading, setTiersLoading] = useState(false);
+  const [tiersError, setTiersError] = useState(null);
+  const [tierBusyId, setTierBusyId] = useState(null);
+  const [flaggedUsers, setFlaggedUsers] = useState(null);
+  const [flaggedLoading, setFlaggedLoading] = useState(false);
+  const [flaggedError, setFlaggedError] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
-    setHackathonError(null);
-    const [orgResult, hackathonResult, tierResult] = await Promise.allSettled([
-      loadOrganizationsForReview(),
-      loadHackathonsForReview(),
-      loadTierSettings(),
-    ]);
-
-    if (orgResult.status === "fulfilled") {
-      setOrganizations(orgResult.value);
-    } else {
-      console.error("Could not load organizations for review.", orgResult.reason);
+    try {
+      setOrganizations(await loadOrganizationsForReview());
+    } catch (requestError) {
+      console.error("Could not load organizations for review.", requestError);
       setOrganizations([]);
-      setLoadError(orgResult.reason);
+      setLoadError(requestError);
+    } finally {
+      setLoading(false);
     }
-
-    if (hackathonResult.status === "fulfilled") {
-      setHackathons(hackathonResult.value);
-    } else {
-      console.error("Could not load hackathons for review.", hackathonResult.reason);
-      setHackathons([]);
-      setHackathonError(hackathonResult.reason);
-    }
-
-    if (tierResult.status === "fulfilled") {
-      setTierSettings(tierResult.value);
-    } else {
-      console.error("Could not load tier settings.", tierResult.reason);
-      setTierSettings([]);
-      if (hackathonResult.status === "fulfilled") setHackathonError(tierResult.reason);
-    }
-
-    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -629,34 +410,56 @@ export default function Admin() {
     loadReviews();
   }, [isAdmin, tab, eventReviews, loadReviews]);
 
+  const loadTiers = useCallback(async () => {
+    setTiersLoading(true);
+    setTiersError(null);
+    try {
+      setTierEvents(await loadHackathonsForTierReview());
+    } catch (requestError) {
+      console.error("Could not load hackathons for tier review.", requestError);
+      setTierEvents([]);
+      setTiersError(requestError);
+    } finally {
+      setTiersLoading(false);
+    }
+  }, []);
+
+  // The Tiers tab loads on first open and after every approval.
+  useEffect(() => {
+    if (!isAdmin || tab !== "tiers" || tierEvents !== null) return;
+    loadTiers();
+  }, [isAdmin, tab, tierEvents, loadTiers]);
+
+  const loadFlagged = useCallback(async () => {
+    setFlaggedLoading(true);
+    setFlaggedError(null);
+    try {
+      setFlaggedUsers(await loadFlaggedUsers());
+    } catch (requestError) {
+      console.error("Could not load flagged users.", requestError);
+      setFlaggedUsers([]);
+      setFlaggedError(requestError);
+    } finally {
+      setFlaggedLoading(false);
+    }
+  }, []);
+
+  // Flagged users load on first open, so the tab count stays cheap.
+  useEffect(() => {
+    if (!isAdmin || tab !== "flagged" || flaggedUsers !== null) return;
+    loadFlagged();
+  }, [isAdmin, tab, flaggedUsers, loadFlagged]);
+
   const counts = useMemo(() => {
-    const totals = { pending: 0, approved: 0, rejected: 0, reviews: 0 };
+    const totals = { pending: 0, approved: 0, rejected: 0, reviews: 0, tiers: 0, flagged: 0 };
     (organizations || []).forEach((organization) => {
       if (totals[organization.status] !== undefined) totals[organization.status] += 1;
     });
     totals.reviews = (eventReviews || []).length;
+    totals.tiers = (tierEvents || []).length;
+    totals.flagged = (flaggedUsers || []).length;
     return totals;
-  }, [organizations, eventReviews]);
-
-  const hackathonCounts = useMemo(() => {
-    const totals = { pending: 0, approved: 0, rejected: 0 };
-    (hackathons || []).forEach((hackathon) => {
-      if (totals[hackathon.approval_status] !== undefined) totals[hackathon.approval_status] += 1;
-    });
-    return totals;
-  }, [hackathons]);
-
-  const organizationsById = useMemo(() => {
-    const map = new Map();
-    (organizations || []).forEach((organization) => map.set(organization.id, organization));
-    return map;
-  }, [organizations]);
-
-  // Every other event from the same organization, for the review view.
-  const earlierEventsFor = (hackathon) =>
-    (hackathons || []).filter(
-      (other) => other.organization_id === hackathon.organization_id && other.id !== hackathon.id,
-    );
+  }, [organizations, eventReviews, tierEvents, flaggedUsers]);
 
   if (adminLoading) {
     return (
@@ -698,39 +501,35 @@ export default function Admin() {
     }
   };
 
-  // Approve or reject one hackathon through the database function. The rules
-  // (tier required, note for a lower tier, reason for a rejection) live in SQL,
-  // so whatever it rejects comes back here as the message shown to the admin.
-  const reviewEvent = async (hackathon, { decision, tier = null, note = null }) => {
-    setBusyId(hackathon.id);
-    setHackathonMessage({ text: "", error: false });
+  // Approve with a tier, or reject. review_hackathon writes approval_status and
+  // approved_tier together and is admin-only, so a failure is reported, not assumed.
+  const decideHackathon = async (event, decision, tier) => {
+    setTierBusyId(event.id);
+    setMessage({ text: "", error: false });
     try {
-      await reviewHackathon({ hackathonId: hackathon.id, decision, tier, note });
-      await load();
-      setHackathonMessage({
+      await reviewHackathon(event.id, decision, tier);
+      await loadTiers();
+      setMessage({
         text:
-          decision === "approve"
-            ? `${hackathon.title} is live as ${tierName(tier)}.`
-            : `${hackathon.title} was rejected and the reason was saved.`,
+          decision === "approved"
+            ? `${event.title} is approved as ${tierLabel(tier)}.`
+            : `${event.title} was rejected and its approved tier was cleared.`,
         error: false,
       });
-      return true;
     } catch (requestError) {
-      setHackathonMessage({
-        text: requestError.message || "The review could not be saved. Please try again.",
+      setMessage({
+        text: requestError.message || "The tier could not be saved. Please try again.",
         error: true,
       });
-      return false;
     } finally {
-      setBusyId(null);
+      setTierBusyId(null);
     }
   };
 
   const visible = (organizations || []).filter((organization) => organization.status === tab);
-  const visibleHackathons = (hackathons || []).filter(
-    (hackathon) => hackathon.approval_status === hackathonTab,
-  );
   const showingReviews = tab === "reviews";
+  const showingTiers = tab === "tiers";
+  const showingFlagged = tab === "flagged";
 
   const toggleReview = async (reviewRow) => {
     setTogglingId(reviewRow.id);
@@ -754,29 +553,61 @@ export default function Admin() {
     }
   };
 
-  const statusText = showingReviews
-    ? reviewsLoading
-      ? "Loading reviews…"
-      : reviewsError
-        ? reviewsError.message || "The reviews could not be loaded."
+  const statusText = showingFlagged
+    ? flaggedLoading
+      ? "Loading flagged users…"
+      : flaggedError
+        ? flaggedError.message || "Flagged users could not be loaded."
         : message.text
-    : loading
-      ? "Loading organizations…"
-      : loadError
-        ? loadError.message || "The review queue could not be loaded."
-        : message.text;
+    : showingTiers
+      ? tiersLoading
+        ? "Loading tier claims…"
+        : tiersError
+          ? tiersError.message || "The tier claims could not be loaded."
+          : message.text
+      : showingReviews
+        ? reviewsLoading
+          ? "Loading reviews…"
+          : reviewsError
+            ? reviewsError.message || "The reviews could not be loaded."
+            : message.text
+        : loading
+          ? "Loading organizations…"
+          : loadError
+            ? loadError.message || "The review queue could not be loaded."
+            : message.text;
 
   return (
     <>
       <PageTitle title="Admin · Organization review | HackMate" />
       <main className="page-main wrap">
         <PageIntro
-          eyebrow={showingReviews ? "ADMIN · EVENT REVIEWS" : "ADMIN · ORGANIZATION REVIEW"}
-          title={showingReviews ? "Moderate what participants write." : "Approve organizers before they host."}
+          eyebrow={
+            showingFlagged
+              ? "ADMIN · FLAGGED USERS"
+              : showingTiers
+                ? "ADMIN · HACKATHON TIERS"
+                : showingReviews
+                  ? "ADMIN · EVENT REVIEWS"
+                  : "ADMIN · ORGANIZATION REVIEW"
+          }
+          title={
+            showingFlagged
+              ? "Members more than one person reported."
+              : showingTiers
+                ? "Approve the tier an organizer claimed."
+                : showingReviews
+                  ? "Moderate what participants write."
+                  : "Approve organizers before they host."
+          }
           description={
-            showingReviews
-              ? "Hidden reviews disappear from every public page while their author and the admins can still see them."
-              : "Check the proof, the details and the signature. Approving unlocks hosting straight away; rejecting saves your reason for the organizer."
+            showingFlagged
+              ? "A member appears here only when two or more different people reported them, so a single report never flags anyone. Every reason and reporter is listed."
+              : showingTiers
+                ? "Organizers claim a tier on the host form. Only the tier you approve here is shown on the event."
+                : showingReviews
+                  ? "Hidden reviews disappear from every public page while their author and the admins can still see them."
+                  : "Check the proof, the details and the signature. Approving unlocks hosting straight away; rejecting saves your reason for the organizer."
           }
         />
 
@@ -805,7 +636,35 @@ export default function Admin() {
           {statusText}
         </p>
 
-        {showingReviews ? (
+        {showingFlagged ? (
+          <div className="admin-list" aria-busy={flaggedLoading}>
+            {flaggedLoading && !flaggedUsers ? null : (flaggedUsers || []).length ? (
+              flaggedUsers.map((flaggedUser) => (
+                <FlaggedCard key={flaggedUser.user_id} flagged={flaggedUser} />
+              ))
+            ) : (
+              <p className="dashboard-empty">
+                No one has been reported by two different people yet. A member is only flagged once
+                two different reporters have filed a report.
+              </p>
+            )}
+          </div>
+        ) : showingTiers ? (
+          <div className="admin-list" aria-busy={tiersLoading}>
+            {tiersLoading && !tierEvents ? null : (tierEvents || []).length ? (
+              tierEvents.map((event) => (
+                <TierCard
+                  event={event}
+                  busy={tierBusyId === event.id}
+                  onDecide={decideHackathon}
+                  key={event.id}
+                />
+              ))
+            ) : (
+              <p className="dashboard-empty">{EMPTY_COPY.tiers}</p>
+            )}
+          </div>
+        ) : showingReviews ? (
           <div className="admin-list" aria-busy={reviewsLoading}>
             {reviewsLoading && !eventReviews ? null : (eventReviews || []).length ? (
               eventReviews.map((reviewRow) => (
@@ -821,73 +680,21 @@ export default function Admin() {
             )}
           </div>
         ) : (
-          <>
-            <div className="admin-list" aria-busy={loading}>
-              {loading && !organizations ? null : visible.length ? (
-                visible.map((organization) => (
-                  <OrganizationCard
-                    key={organization.id}
-                    organization={organization}
-                    busy={busyId === organization.id}
-                    onApprove={(target) => review(target, "approved")}
-                    onReject={(target, reason) => review(target, "rejected", reason)}
-                  />
-                ))
-              ) : (
-                <p className="dashboard-empty">{EMPTY_COPY[tab]}</p>
-              )}
-            </div>
-
-            <section className="org-form-section" aria-label="Hackathon review">
-              <p className="eyebrow">HACKATHONS</p>
-              <div className="organizer-toolbar admin-toolbar">
-                <div className="filter-list" aria-label="Filter hackathons by status">
-                  {HACKATHON_TABS.map((option) => (
-                    <button
-                      className={`${hackathonTab === option.value ? "filter-active" : "skill"} hackathon-theme`}
-                      type="button"
-                      aria-pressed={hackathonTab === option.value}
-                      key={option.value}
-                      onClick={() => setHackathonTab(option.value)}
-                    >
-                      {option.label} ({hackathonCounts[option.value]})
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <p
-                className="registration-status"
-                role="status"
-                aria-live="polite"
-                data-error={hackathonMessage.error}
-              >
-                {loading
-                  ? "Loading hackathons…"
-                  : hackathonError
-                    ? hackathonError.message || "The hackathon queue could not be loaded."
-                    : hackathonMessage.text}
-              </p>
-
-              <div className="admin-list" aria-busy={loading}>
-                {loading && !hackathons ? null : visibleHackathons.length ? (
-                  visibleHackathons.map((hackathon) => (
-                    <HackathonCard
-                      key={hackathon.id}
-                      hackathon={hackathon}
-                      organization={organizationsById.get(hackathon.organization_id) || null}
-                      earlierEvents={earlierEventsFor(hackathon)}
-                      tierSettings={tierSettings}
-                      busy={busyId === hackathon.id}
-                      onReview={reviewEvent}
-                    />
-                  ))
-                ) : (
-                  <p className="dashboard-empty">{EMPTY_HACKATHON_COPY[hackathonTab]}</p>
-                )}
-              </div>
-            </section>
-          </>
+          <div className="admin-list" aria-busy={loading}>
+          {loading && !organizations ? null : visible.length ? (
+            visible.map((organization) => (
+              <OrganizationCard
+                key={organization.id}
+                organization={organization}
+                busy={busyId === organization.id}
+                onApprove={(target) => review(target, "approved")}
+                onReject={(target, reason) => review(target, "rejected", reason)}
+              />
+            ))
+          ) : (
+            <p className="dashboard-empty">{EMPTY_COPY[tab]}</p>
+          )}
+          </div>
         )}
       </main>
     </>

@@ -39,121 +39,6 @@ export async function loadOrganizationsForReview() {
   return data || [];
 }
 
-// ---------------------------------------------------------------------------
-// Hackathon review
-// ---------------------------------------------------------------------------
-
-// Every column the review view shows, including the optional ones the organizer
-// filled in under "More details". Admins can read all of them.
-export const HACKATHON_REVIEW_FIELDS = [
-  "id",
-  "slug",
-  "title",
-  "description",
-  "category",
-  "organizer",
-  "location",
-  "prize",
-  "registration_deadline",
-  "starts_at",
-  "ends_at",
-  "status",
-  "created_by",
-  "created_at",
-  "updated_at",
-  "approval_status",
-  "organization_id",
-  "venue_name",
-  "address",
-  "city",
-  "maps_url",
-  "capacity",
-  "price",
-  "banner_url",
-  "theme_tags",
-  "rules",
-  "prize_details",
-  "team_size_max",
-  "claimed_tier",
-  "claimed_tier_reason",
-  "expected_participants",
-  "prize_pool",
-  "tier",
-  "tier_note",
-  "reviewed_by",
-  "reviewed_at",
-  "review_note",
-].join(", ");
-
-// Every hackathon, newest first. RLS returns the whole table for an admin, so the
-// page can split it into Pending / Live / Rejected and group events by
-// organization for the "earlier hackathons" line in the review view.
-export async function loadHackathonsForReview() {
-  if (!supabase) throw new Error("Supabase is not configured.");
-  const { data, error } = await supabase
-    .from("hackathons")
-    .select(HACKATHON_REVIEW_FIELDS)
-    .order("created_at", { ascending: false });
-  if (error) {
-    if (error.code === "42501") {
-      throw new Error(
-        "Only admins can read every hackathon. Check that the admin SQL migration has been run in Supabase.",
-      );
-    }
-    if (error.code === "42703") {
-      throw new Error(
-        `The hackathon review columns are missing: ${error.message}. Apply the tier migration in Supabase.`,
-      );
-    }
-    throw error;
-  }
-  return data || [];
-}
-
-// The three tiers with their examples and multipliers. Readable by anyone (the
-// host form uses the same wording), so an admin page never needs a special case.
-export async function loadTierSettings() {
-  if (!supabase) throw new Error("Supabase is not configured.");
-  const { data, error } = await supabase
-    .from("tier_settings")
-    .select("tier, label, description, examples, criteria, points_multiplier")
-    .order("tier", { ascending: true });
-  if (error) {
-    if (error.code === "42P01" || error.code === "42501") {
-      throw new Error(
-        "The tier settings table is missing. Apply the tier migration in Supabase.",
-      );
-    }
-    throw error;
-  }
-  return data || [];
-}
-
-// The only way to approve or reject an event. Every rule lives in the database
-// function, so the messages below are the server's own words: a missing tier, a
-// lower tier than the claim without a note, or a rejection without a reason.
-export async function reviewHackathon({ hackathonId, decision, tier = null, note = null }) {
-  if (!supabase) throw new Error("Supabase is not configured.");
-  const { data, error } = await supabase.rpc("review_hackathon", {
-    p_hackathon_id: hackathonId,
-    p_decision: decision,
-    p_tier: tier === null || tier === undefined || tier === "" ? null : Number(tier),
-    p_note: note === null || note === undefined ? null : note.trim(),
-  });
-  if (error) {
-    if (error.code === "42501") {
-      throw new Error("Only admins can review hackathons.");
-    }
-    if (error.code === "42883" || error.code === "PGRST202") {
-      throw new Error(
-        "The review_hackathon function is missing. Apply the tier migration in Supabase.",
-      );
-    }
-    throw new Error(error.message || "The review could not be saved. Please try again.");
-  }
-  return data;
-}
-
 // Approve or reject one organization. Rejecting requires a reason, which is
 // stored in review_note; approving clears it again.
 export async function reviewOrganization(id, { status, reviewNote = null }) {
@@ -193,6 +78,86 @@ export async function reviewOrganization(id, { status, reviewNote = null }) {
   return data[0];
 }
 
+// ---------------------------------------------------------------------------
+// Hackathon tiers
+// ---------------------------------------------------------------------------
+// An organizer only claims a tier. These calls are the only way a tier becomes
+// "approved": public.protect_hackathon_tier() rejects an approved_tier written
+// by anyone who is not an admin, so an empty result here means it did not happen.
+
+export const TIER_REVIEW_FIELDS =
+  "id, slug, title, organizer, city, starts_at, status, approval_status, claimed_tier, approved_tier, tier_reason, expected_participants, prize_pool, created_at";
+
+// Every hackathon that has claimed a tier, newest first.
+export async function loadHackathonsForTierReview() {
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { data, error } = await supabase
+    .from("hackathons")
+    .select(TIER_REVIEW_FIELDS)
+    .not("claimed_tier", "is", null)
+    .order("created_at", { ascending: false });
+  if (error) {
+    if (error.code === "42501") {
+      throw new Error(
+        "Only admins can read hackathons for tier review. Check that the admin SQL migration has been run in Supabase.",
+      );
+    }
+    if (error.code === "42703") {
+      throw new Error(
+        "Hackathon tiers are not available yet: run supabase/migrations/20261029120000_add_hackathon_tiers.sql in Supabase first.",
+      );
+    }
+    throw error;
+  }
+  return data || [];
+}
+
+export const HACKATHON_DECISIONS = ["approved", "rejected"];
+
+// Approve a hackathon with a tier, or reject it. Both fields are written by
+// public.review_hackathon in one statement: only an admin passes its guard, and
+// public.protect_hackathon_tier blocks approved_tier writes from anyone else, so
+// there is no client path that sets a tier without an approval.
+export async function reviewHackathon(hackathonId, decision, tier = null) {
+  if (!supabase) throw new Error("Supabase is not configured.");
+  if (!HACKATHON_DECISIONS.includes(decision)) {
+    throw new Error("Pick approved or rejected.");
+  }
+  const value = tier === null || tier === undefined || tier === "" ? null : Number(tier);
+  if (decision === "approved" && ![1, 2, 3].includes(value)) {
+    throw new Error("Choose the tier you are approving: Tier 1, Tier 2 or Tier 3.");
+  }
+
+  const { data, error } = await supabase.rpc("review_hackathon", {
+    p_hackathon_id: hackathonId,
+    p_decision: decision,
+    p_tier: decision === "approved" ? value : null,
+  });
+
+  if (error) {
+    if (error.code === "42501") {
+      throw new Error(
+        "Your account is not allowed to review hackathons. Check your row in public.admins and that the tier settings migration has been run.",
+      );
+    }
+    if (error.code === "42883" || error.code === "PGRST202") {
+      throw new Error(
+        "Hackathon review is not available yet: run supabase/migrations/20261029140000_hackathon_tier_settings_and_review.sql in Supabase first.",
+      );}
+    if (error.code === "22023") {
+      throw new Error(error.message || "That decision or tier was rejected. Pick a tier from 1 to 3.");
+    }
+    if (error.code === "P0002") {
+      throw new Error("That hackathon no longer exists. Reload the queue and try again.");
+    }
+    throw new Error(error.message || "The review could not be saved. Please try again.");
+  }
+  if (!data) {
+    throw new Error("The review was not saved: only an admin can review a hackathon.");
+  }
+  return data;
+}
+
 // Every event review, hidden ones included, newest first. RLS returns an empty
 // list for non-admins and the function itself checks public.is_admin().
 export async function loadEventReviewsForModeration() {
@@ -200,6 +165,23 @@ export async function loadEventReviewsForModeration() {
   const { data, error } = await supabase.rpc("list_event_reviews_for_admin");
   if (error) {
     if (isReviewsUnavailable(error)) return [];
+    throw error;
+  }
+  return Array.isArray(data) ? data : [];
+}
+
+// Members reported by two or more different people. The RPC is SECURITY DEFINER
+// with its own is_admin() check, so a non-admin gets an exception, not data.
+export async function loadFlaggedUsers() {
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { data, error } = await supabase.rpc("list_flagged_users");
+  if (error) {
+    if (error.code === "42501") {
+      throw new Error(
+        "Only admins can read flagged users. Run the admin SQL migration and check your row in public.admins.",
+      );
+    }
+    if (error.code === "PGRST202" || error.code === "42883") return [];
     throw error;
   }
   return Array.isArray(data) ? data : [];
