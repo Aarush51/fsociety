@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import EventCard from "../components/EventCard";
 import { Arrow, CopyIcon } from "../components/Icons";
+import IdeaDetailsDialog from "../components/IdeaDetails";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
 import { useAuth } from "../context/AuthContext";
@@ -15,6 +16,7 @@ import {
   hackathonCardData,
 } from "../lib/format";
 import { fetchMyHackathons, fetchMyRank, splitMyHackathons } from "../lib/personal";
+import { ideaFromProject } from "../lib/projects";
 import { supabase } from "../lib/supabase";
 
 const HOME_HACKATHON_FIELDS =
@@ -45,6 +47,10 @@ export default function Dashboard() {
   const [eventsBusy, setEventsBusy] = useState(true);
   const [copied, setCopied] = useState(false);
   const [codeStatus, setCodeStatus] = useState({ text: "", error: false });
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Saved ideas are opened from their own row, so the selected project lives in
+  // the URL (?idea=<project id>) and a refresh keeps the same idea open.
+  const [ideaDetails, setIdeaDetails] = useState(null);
   const ratings = useHackathonRatings(upcoming);
 
   const loadDashboard = useCallback(async () => {
@@ -163,6 +169,53 @@ export default function Dashboard() {
   const { current: registered, past } = splitMyHackathons(myHackathons);
   const skills = Object.keys(extras?.skill_levels || {});
   const interests = Array.isArray(extras?.interests) ? extras.interests : [];
+
+  // The dashboard RPC returns the project rows without their stored idea, so
+  // the full idea_data (and the plain description for older rows) is read here
+  // for the caller's own team projects. RLS already limits these rows.
+  const projectKey = projects.map((project) => project.id).join(",");
+  useEffect(() => {
+    if (!supabase || !projectKey) {
+      setIdeaDetails({});
+      return undefined;
+    }
+    let active = true;
+    supabase
+      .from("projects")
+      .select("id, description, idea_data")
+      .in("id", projectKey.split(","))
+      .then(({ data, error: requestError }) => {
+        if (!active) return;
+        if (requestError) throw requestError;
+        setIdeaDetails(
+          Object.fromEntries((data || []).map((row) => [row.id, row])),
+        );
+      })
+      .catch((requestError) => {
+        if (!active) return;
+        console.error("Could not load the saved idea details.", requestError);
+        // Older projects still open with whatever the dashboard already has.
+        setIdeaDetails({});
+      });
+    return () => {
+      active = false;
+    };
+  }, [projectKey]);
+
+  const openProjectId = searchParams.get("idea") || "";
+  const openProject = openProjectId
+    ? projects.find((project) => project.id === openProjectId) || null
+    : null;
+  const openIdea =
+    openProject && ideaDetails
+      ? ideaFromProject(openProject, ideaDetails[openProject.id] || {})
+      : null;
+
+  const closeIdea = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("idea");
+    setSearchParams(next, { replace: true });
+  };
 
   const handleCopyFriendCode = async () => {
     if (!friendCode) return;
@@ -450,14 +503,18 @@ export default function Dashboard() {
               <p className="dashboard-empty">Your projects couldn’t be loaded.</p>
             ) : projects.length ? (
               projects.map((project) => (
-                <article className="dashboard-data-card" key={project.id}>
+                <Link
+                  className="dashboard-data-card"
+                  to={`/dashboard?idea=${encodeURIComponent(project.id)}`}
+                  key={project.id}
+                >
                   <span>
                     <strong>{project.title}</strong>
                     <small>
                       {project.team_name} · {project.status.replaceAll("_", " ")}
                     </small>
                   </span>
-                </article>
+                </Link>
               ))
             ) : (
               <p className="dashboard-empty">Your team projects will show up here.</p>
@@ -516,6 +573,14 @@ export default function Dashboard() {
           ))}
         </div>
       </main>
+      {openIdea ? (
+        <IdeaDetailsDialog
+          idea={openIdea.idea}
+          brief={openIdea.brief}
+          incomplete={openIdea.incomplete}
+          onClose={closeIdea}
+        />
+      ) : null}
     </>
   );
 }

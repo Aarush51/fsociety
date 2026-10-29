@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Arrow } from "../components/Icons";
+import IdeaDetailsDialog, {
+  BriefDetails,
+  IdeaDetailBlocks,
+  IdeaTags,
+} from "../components/IdeaDetails";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
 import ProjectCreateDialog from "../components/ProjectCreateDialog";
@@ -78,109 +83,6 @@ function mergeSkills(primary, extra) {
   return merged;
 }
 
-function BriefDetails({ brief }) {
-  return (
-    <dl className="idea-brief">
-      <div>
-        <dt>Hackathon</dt>
-        <dd>{brief.hackathon.title}</dd>
-      </div>
-      <div>
-        <dt>Theme</dt>
-        <dd>{brief.hackathon.category || "Open innovation"}</dd>
-      </div>
-      <div>
-        <dt>Your skills</dt>
-        <dd>{brief.skills.join(", ")}</dd>
-      </div>
-      <div>
-        <dt>Teammate skills</dt>
-        <dd>{brief.teamSkills.length ? brief.teamSkills.join(", ") : "No teammates added yet"}</dd>
-      </div>
-      <div>
-        <dt>Interests</dt>
-        <dd>{brief.interests}</dd>
-      </div>
-      <div>
-        <dt>Available time</dt>
-        <dd>{brief.time?.label || "Not set"}</dd>
-      </div>
-    </dl>
-  );
-}
-
-function IdeaTags({ idea }) {
-  return (
-    <div className="idea-card-tags">
-      <span className="idea-tag">{idea.difficulty}</span>
-      <span className="idea-tag idea-tag-time">{idea.estimated_time}</span>
-    </div>
-  );
-}
-
-function IdeaDetailBlocks({ idea }) {
-  return (
-    <>
-      <dl className="idea-card-summary">
-        <div>
-          <dt>Problem</dt>
-          <dd className="idea-problem">{idea.problem}</dd>
-        </div>
-        <div>
-          <dt>Solution</dt>
-          <dd className="idea-solution">{idea.solution}</dd>
-        </div>
-        <div>
-          <dt>Target users</dt>
-          <dd className="idea-users">{idea.target_users}</dd>
-        </div>
-      </dl>
-
-      <div className="idea-card-columns">
-        <section>
-          <p className="eyebrow">KEY FEATURES</p>
-          <ul className="idea-list idea-features">
-            {idea.key_features.map((feature, featureIndex) => (
-              <li key={`${feature}-${featureIndex}`}>{feature}</li>
-            ))}
-          </ul>
-        </section>
-        <section>
-          <p className="eyebrow">TECH STACK</p>
-          <div className="idea-chips idea-tech">
-            {idea.tech_stack.map((item, itemIndex) => (
-              <span className="idea-chip" key={`${item}-${itemIndex}`}>
-                {item}
-              </span>
-            ))}
-          </div>
-          <p className="eyebrow">TEAM ROLES</p>
-          <div className="idea-chips idea-roles">
-            {idea.required_team_roles.map((role, roleIndex) => (
-              <span className="idea-chip" key={`${role}-${roleIndex}`}>
-                {role}
-              </span>
-            ))}
-          </div>
-        </section>
-      </div>
-
-      <section>
-        <p className="eyebrow">RISKS</p>
-        <ul className="idea-list idea-risks">
-          {idea.risks.map((risk, riskIndex) => (
-            <li key={`${risk}-${riskIndex}`}>{risk}</li>
-          ))}
-        </ul>
-      </section>
-
-      <p className="idea-why">
-        <strong>Why it fits:</strong> {idea.why_it_fits}
-      </p>
-    </>
-  );
-}
-
 function IdeaCard({ idea, index, selected, onViewDetails, onUse }) {
   return (
     <article className={`idea-card${selected ? " idea-card-selected" : ""}`}>
@@ -214,47 +116,6 @@ function IdeaCard({ idea, index, selected, onViewDetails, onUse }) {
         </button>
       </footer>
     </article>
-  );
-}
-
-function IdeaDetailsDialog({ idea, selected, containerRef, onClose, onUse }) {
-  return (
-    <div
-      className="idea-modal-backdrop"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
-      <div
-        className="idea-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="idea-detail-title"
-        ref={containerRef}
-      >
-        <div className="idea-modal-top">
-          <div className="idea-modal-heading">
-            <p className="eyebrow">PROJECT IDEA</p>
-            <h2 id="idea-detail-title">{idea.title}</h2>
-            <IdeaTags idea={idea} />
-          </div>
-          <button className="idea-modal-close" type="button" aria-label="Close details" onClick={onClose}>
-            ×
-          </button>
-        </div>
-
-        <IdeaDetailBlocks idea={idea} />
-
-        <footer className="idea-modal-actions">
-          <button className="button button-outline" type="button" onClick={onClose}>
-            Close
-          </button>
-          <button className="button button-lime" type="button" aria-pressed={selected} onClick={() => onUse(idea)}>
-            {selected ? "Using This Idea ✓" : "Use This Idea"}
-          </button>
-        </footer>
-      </div>
-    </div>
   );
 }
 
@@ -384,7 +245,6 @@ export default function IdeaGenerator() {
   const previewRef = useRef(null);
   const taskPanelRef = useRef(null);
   const prefilledFor = useRef(null);
-  const detailRef = useRef(null);
   const detailTrigger = useRef(null);
   const projectReturnFocus = useRef(false);
   const roadmapRequest = useRef(0);
@@ -485,45 +345,6 @@ export default function IdeaGenerator() {
     projectReturnFocus.current = false;
     document.querySelector('.idea-use-button[aria-pressed="true"]')?.focus?.();
   }, [projectIdea]);
-
-  // Keep the details dialog keyboard-friendly: Escape closes it, Tab stays
-  // inside, background scrolling is paused, and focus returns to the trigger.
-  useEffect(() => {
-    if (!detailIdea) return undefined;
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    detailRef.current?.querySelector("button, a[href]")?.focus();
-
-    const handleKeyDown = (event) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        setDetailIdea(null);
-        return;
-      }
-      if (event.key !== "Tab" || !detailRef.current) return;
-      const focusables = [
-        ...detailRef.current.querySelectorAll('button:not(:disabled), a[href], [tabindex]:not([tabindex="-1"])'),
-      ];
-      if (!focusables.length) return;
-      const first = focusables[0];
-      const last = focusables[focusables.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = previousOverflow;
-      detailTrigger.current?.focus?.();
-    };
-  }, [detailIdea]);
 
   const selectedHackathon = hackathons.find((hackathon) => hackathon.id === selectedId) || null;
   const selectedIdea = ideas.find((idea) => idea.title === selectedTitle) || null;
@@ -1344,7 +1165,7 @@ export default function IdeaGenerator() {
         <IdeaDetailsDialog
           idea={detailIdea}
           selected={selectedTitle === detailIdea.title}
-          containerRef={detailRef}
+          returnFocusRef={detailTrigger}
           onClose={() => setDetailIdea(null)}
           onUse={handleUseIdea}
         />
@@ -1352,6 +1173,7 @@ export default function IdeaGenerator() {
       {projectIdea ? (
         <ProjectCreateDialog
           idea={projectIdea}
+          brief={brief}
           onClose={closeProjectDialog}
           onCreated={handleProjectCreated}
         />

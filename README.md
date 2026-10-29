@@ -51,8 +51,16 @@ are small React contexts.
   and **Use This Idea**. The latter opens a review-first project creation dialog
   prefilled with the idea's title, description, key features, tech stack, and
   target users; the user picks one of the teams they lead and nothing is written
-  until they press **Create project**. Duplicate titles for the same team are
-  blocked, and team members who are not leaders see a leader-only message.
+  until they press **Create project**. The complete idea (problem, solution,
+  features, stack, roles, difficulty, time, risks, why it fits, and the brief)
+  is saved with the project in `projects.idea_data`, so the Dashboard can reopen
+  it. Duplicate titles for the same team are blocked, and team members who are
+  not leaders see a leader-only message.
+- **Saved ideas on the Dashboard** — each row under “Ideas in progress” opens the
+  same detail view the generator uses (clicking it, or `/dashboard?idea=<id>`),
+  with the brief, risks and the rest. **Back to dashboard** closes it. Ideas
+  saved before `idea_data` existed show their title and description plus the
+  note “This idea was saved before full details were stored.”
   **Generate Roadmap** turns the selected idea into seven phases (planning to
   final submission) with objectives, tasks, time estimates, suggested roles, and
   priorities that fit the chosen development time. Roadmaps live in page state
@@ -514,11 +522,13 @@ variables, then add the deployed origin to Supabase Auth’s redirect URLs.
   created from a roadmap but not edited, and the dashboard and profile only read
   them.
 - “Use This Idea” reuses the existing `projects` table and its insert policy
-  (team leaders only): title and description are real columns, while key
-  features, tech stack, and target users are composed into the description
-  because the table has no columns for them. No schema change was needed. The
-  dialog creates nothing until the user confirms, and duplicate titles for the
-  same team are blocked in the UI and re-checked immediately before insert.
+  (team leaders only). Title and description stay real columns, and the complete
+  idea is stored as JSON in `projects.idea_data`
+  (`20261029120000_add_project_idea_data.sql`); the description keeps a readable
+  summary. Projects created before that column existed have `idea_data = null`
+  and are labelled as incomplete. The dialog creates nothing until the user
+  confirms, and duplicate titles for the same team are blocked in the UI and
+  re-checked immediately before insert.
 - The idea generator invokes the Supabase Edge Function `generate-ideas`, which
   calls Gemini with `GEMINI_API_KEY` from its own secret environment. Approved
   hackathons come from `hackathons.approval_status`; skills prefill from the
