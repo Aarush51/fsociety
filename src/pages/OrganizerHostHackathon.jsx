@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import DraftRestoredNote from "../components/DraftRestoredNote";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
@@ -26,6 +26,9 @@ const EMPTY_FORM = {
   prize_pool: "",
 };
 
+const SUBMITTED_MESSAGE =
+  "Your hackathon was submitted. An admin will review the tier you claimed, and it will appear on the public pages once approved.";
+
 function Field({ label, hint, error, children }) {
   return (
     <label>
@@ -44,7 +47,6 @@ function Field({ label, hint, error, children }) {
 export default function OrganizerHostHackathon() {
   const { user } = useAuth();
   const { organization, loading } = useOrganization();
-  const navigate = useNavigate();
   const [values, setValues, clearDraft, draftRestored] = useFormDraft(
     `host-hackathon.${user?.id ?? "anonymous"}`,
     EMPTY_FORM,
@@ -108,8 +110,10 @@ export default function OrganizerHostHackathon() {
     setMessage({ text: "", error: false });
     try {
       await createHackathon({ organization, user, values });
+      // The event is pending review now, so it is not on the public pages yet.
+      // Stay on the form, say what happens next, and clear it for the next one.
       clearDraft();
-      navigate("/organizer");
+      setMessage({ text: SUBMITTED_MESSAGE, error: false });
     } catch (error) {
       setMessage({ text: error.message || "Your hackathon could not be saved.", error: true });
     } finally {

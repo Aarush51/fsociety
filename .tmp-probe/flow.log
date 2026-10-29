@@ -1,0 +1,54 @@
+[mailbox] probemvttes0w@maxxspace.com
+[signup] 429 {"code":429,"error_code":"over_email_send_rate_limit","msg":"email rate limit exceeded"}
+[poll 2026-10-29T17:26:21.873Z] no message yet
+[poll 2026-10-29T17:26:27.044Z] no message yet
+[poll 2026-10-29T17:26:32.530Z] no message yet
+[poll 2026-10-29T17:26:38.009Z] no message yet
+[poll 2026-10-29T17:26:43.488Z] no message yet
+[poll 2026-10-29T17:26:48.970Z] no message yet
+[poll 2026-10-29T17:26:54.497Z] no message yet
+[poll 2026-10-29T17:26:59.976Z] no message yet
+[poll 2026-10-29T17:27:05.519Z] no message yet
+[poll 2026-10-29T17:27:11.019Z] no message yet
+[poll 2026-10-29T17:27:16.690Z] no message yet
+[poll 2026-10-29T17:27:22.179Z] no message yet
+[poll 2026-10-29T17:27:27.710Z] no message yet
+[poll 2026-10-29T17:27:33.221Z] no message yet
+[poll 2026-10-29T17:27:38.748Z] no message yet
+[poll 2026-10-29T17:27:44.272Z] no message yet
+[poll 2026-10-29T17:27:49.751Z] no message yet
+[poll 2026-10-29T17:27:55.231Z] no message yet
+[poll 2026-10-29T17:28:00.757Z] no message yet
+[poll 2026-10-29T17:28:06.226Z] no message yet
+[poll 2026-10-29T17:28:11.708Z] no message yet
+[poll 2026-10-29T17:28:17.202Z] no message yet
+[poll 2026-10-29T17:28:22.690Z] no message yet
+[poll 2026-10-29T17:28:28.154Z] no message yet
+[poll 2026-10-29T17:28:33.624Z] no message yet
+[poll 2026-10-29T17:28:39.106Z] no message yet
+[poll 2026-10-29T17:28:44.644Z] no message yet
+[poll 2026-10-29T17:28:50.143Z] no message yet
+[poll 2026-10-29T17:28:55.615Z] no message yet
+[poll 2026-10-29T17:29:01.141Z] no message yet
+[poll 2026-10-29T17:29:06.654Z] no message yet
+[poll 2026-10-29T17:29:12.145Z] no message yet
+[poll 2026-10-29T17:29:17.660Z] no message yet
+[poll 2026-10-29T17:29:24.292Z] no message yet
+[poll 2026-10-29T17:29:29.844Z] no message yet
+[poll 2026-10-29T17:29:35.376Z] no message yet
+[poll 2026-10-29T17:29:40.922Z] no message yet
+[poll 2026-10-29T17:29:46.474Z] no message yet
+[poll 2026-10-29T17:29:51.944Z] no message yet
+[poll 2026-10-29T17:29:57.476Z] no message yet
+[poll 2026-10-29T17:30:02.984Z] no message yet
+[poll 2026-10-29T17:30:08.571Z] no message yet
+[poll 2026-10-29T17:30:14.111Z] no message yet
+[poll 2026-10-29T17:30:19.653Z] no message yet
+file:///C:/Users/AVANI%20SHETTY%20D/hackmate/fsociety/.tmp-probe/signup-confirm.mjs:63
+if (!link) throw new Error("No confirmation link arrived");
+                 ^
+
+Error: No confirmation link arrived
+    at file:///C:/Users/AVANI%20SHETTY%20D/hackmate/fsociety/.tmp-probe/signup-confirm.mjs:63:18
+
+Node.js v24.22.1

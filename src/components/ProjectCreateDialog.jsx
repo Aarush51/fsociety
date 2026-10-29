@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import {
+  composeIdeaData,
   composeProjectDescription,
   findDuplicateProject,
   splitCommas,
@@ -21,12 +22,15 @@ function friendlyError(error) {
   if (/duplicate key|already exists/i.test(message)) {
     return "A project with this title already exists for that team.";
   }
+  if (/idea_data/i.test(message) && /column|schema/i.test(message)) {
+    return "The database needs the projects.idea_data migration before full ideas can be saved. Run the latest file in supabase/migrations.";
+  }
   return message || "Could not create the project. Try again.";
 }
 
 // Review-first project creation for a generated idea. Nothing is written until
 // the user presses “Create project”; the existing projects table is used as-is.
-export default function ProjectCreateDialog({ idea, onClose, onCreated }) {
+export default function ProjectCreateDialog({ idea, brief = null, onClose, onCreated }) {
   const { user } = useAuth();
   const dialogRef = useRef(null);
   const savingRef = useRef(false);
@@ -191,6 +195,8 @@ export default function ProjectCreateDialog({ idea, onClose, onCreated }) {
         return;
       }
 
+      const features = splitLines(form.features);
+      const techStack = splitCommas(form.techStack);
       const { data: inserted, error: insertError } = await supabase
         .from("projects")
         .insert({
@@ -198,8 +204,20 @@ export default function ProjectCreateDialog({ idea, onClose, onCreated }) {
           title: form.title.trim(),
           description: composeProjectDescription({
             description: form.description,
-            features: splitLines(form.features),
-            techStack: splitCommas(form.techStack),
+            features,
+            techStack,
+            targetUsers: form.targetUsers,
+          }),
+          // The complete idea, so the Dashboard can reopen every section the
+          // generator showed. Older rows without this column still list their
+          // title and description.
+          idea_data: composeIdeaData({
+            idea,
+            brief,
+            title: form.title,
+            description: form.description,
+            features,
+            techStack,
             targetUsers: form.targetUsers,
           }),
           status: "draft",

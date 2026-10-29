@@ -86,3 +86,51 @@ export async function joinHackathonTeam(teamId) {
   const { error } = await supabase.rpc("join_hackathon_team", { p_team_id: teamId });
   if (error) throw new Error(error.message || "You could not join that team.");
 }
+
+function isMissingRpc(error) {
+  return (
+    error?.code === "PGRST202" ||
+    /could not find the function|function .* does not exist/i.test(String(error?.message || ""))
+  );
+}
+
+// Join by the ID a team leader shared. join_team_by_code() resolves the uuid or
+// its short code inside the database and enforces the hackathon, registration,
+// suspension, membership and capacity rules, so its message is shown verbatim.
+// Older databases without that RPC fall back to the existing join call plus the
+// checks this page can do on its own.
+export async function joinTeamById({ hackathonId, teamCode, teams = [] }) {
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const code = String(teamCode || "").trim();
+  if (!code) throw new Error("Enter the team ID you were given.");
+
+  const { data, error } = await supabase.rpc("join_team_by_code", {
+    p_hackathon_id: hackathonId,
+    p_team_code: code,
+  });
+
+  if (!error) {
+    return { teamId: data?.id || "", teamName: data?.name || "", team: data || null };
+  }
+  if (!isMissingRpc(error)) {
+    throw new Error(error.message || "That team could not be joined.");
+  }
+
+  console.warn("join_team_by_code is missing; run the latest team migration.");
+  const team = findTeamsByQuery(teams, code)[0];
+  if (!team) throw new Error("No team in this hackathon uses that team ID.");
+  await joinHackathonTeam(team.id);
+  return { teamId: team.id, teamName: team.name, team: null };
+}
+
+// Skill and interest matches from the database. Each row is only a team id,
+// name, member count, spots left, the skills the team lacks that the caller has,
+// and shared interests — never a member identity.
+export async function suggestTeams(hackathonId) {
+  if (!supabase || !hackathonId) return [];
+  const { data, error } = await supabase.rpc("suggest_teams", {
+    p_hackathon_id: hackathonId,
+  });
+  if (error) throw error;
+  return Array.isArray(data) ? data : [];
+}

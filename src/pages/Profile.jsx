@@ -7,7 +7,7 @@ import { SkillsFields, cleanHobbies, cleanInterests, cleanSkillLevels } from "..
 import { Arrow } from "../components/Icons";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
-import { formatEventDate, formatNumber, initialsFromName } from "../lib/format";
+import { formatEventDate, formatNumber, initialsFromName, shortName } from "../lib/format";
 import { supabase } from "../lib/supabase";
 
 const EMPTY_PROFILE_DRAFT = {
@@ -50,6 +50,10 @@ export default function Profile() {
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState({ text: "Loading your profile…", error: false });
+  const [friends, setFriends] = useState([]);
+  const [reviews, setReviews] = useState([]);
+  const [reviewsLoading, setReviewsLoading] = useState(true);
+  const [reviewsError, setReviewsError] = useState(null);
   const [ledger, setLedger] = useState(null);
   const [ledgerLoading, setLedgerLoading] = useState(true);
   const [ledgerError, setLedgerError] = useState(null);
@@ -68,6 +72,11 @@ export default function Profile() {
   const setSkillLevels = setField("skill_levels");
   const setInterests = setField("interests");
   const setHobbies = setField("hobbies");
+  const handleFriendFound = (friend) => {
+    setFriends((current) =>
+      current.some((existing) => existing.id === friend.id) ? current : [...current, friend],
+    );
+  };
 
   useEffect(() => {
     if (!supabase) return undefined;
@@ -453,7 +462,8 @@ export default function Profile() {
             </section>
           </div>
         </div>
-        <section className="dashboard-data-section" aria-label="Coin history">
+        <div className="profile-history-layout">
+          <section className="dashboard-data-section" aria-label="Coin history">
             <div className="section-heading">
               <div>
                 <p className="eyebrow">COIN HISTORY</p>
@@ -526,7 +536,8 @@ export default function Profile() {
                 </p>
               )
             ) : null}
-        </section>
+          </section>
+        </div>
       </main>
     </>
   );

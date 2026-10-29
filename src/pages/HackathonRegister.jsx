@@ -461,31 +461,42 @@ export default function HackathonRegister() {
 
       {!blockedByReviews && effectiveStage === "team" ? (
         <section aria-label="Team formation">
-          <p className="eyebrow">
-            {registered ? "YOU ARE REGISTERED · " : ""}
-            {myTeam ? "YOUR TEAM" : "NOW FORM YOUR TEAM"}
-          </p>
-          {!registered ? (
-            <div className="org-form-actions">
-              <button
-                className="button button-dark"
-                type="button"
-                onClick={() => setStage("register")}
-              >
-                Finish registration first
-              </button>
-            </div>
-          ) : null}
-          <TeamFormation
-            hackathon={hackathon}
-            userId={user.id}
-            mySkills={skills}
-            teams={teams}
-            myTeam={myTeam}
-            onChanged={async () => {
-              await load();
-            }}
-          />
+          {registered ? (
+            <>
+              <p className="eyebrow">
+                YOU ARE REGISTERED · {myTeam ? "YOUR TEAM" : "NOW FORM YOUR TEAM"}
+              </p>
+              <TeamFormation
+                hackathon={hackathon}
+                userId={user.id}
+                mySkills={skills}
+                teams={teams}
+                myTeam={myTeam}
+                onChanged={async () => {
+                  await load();
+                }}
+              />
+            </>
+          ) : (
+            <>
+              <p className="eyebrow">TEAM FORMATION</p>
+              <p className="registration-status">
+                You can make a team or join one once you are registered for {hackathon.title}.
+              </p>
+              <div className="org-form-actions">
+                <button
+                  className="button button-dark"
+                  type="button"
+                  onClick={() => {
+                    setMessage({ text: "", error: false });
+                    setStage("register");
+                  }}
+                >
+                  Go to registration <Arrow />
+                </button>
+              </div>
+            </>
+          )}
         </section>
       ) : null}
     </main>
