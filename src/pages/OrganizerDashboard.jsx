@@ -18,16 +18,40 @@ function EventRow({ event }) {
   const dates = `${formatEventDate(event.starts_at)} – ${formatEventDate(event.ends_at)}`;
   const registered = Number(event.registered_count) || 0;
   const capacity = Number(event.capacity) || 0;
+
+  // Review state. The admin's tier is the real one; the organizer's claim is
+  // only shown when the two differ, so the row stays quiet in the common case.
+  const reviewStatus = event.approval_status || "approved";
+  const tier = Number(event.tier) || null;
+  const claimedTier = Number(event.claimed_tier) || null;
+  const statusLabel =
+    reviewStatus === "pending"
+      ? "Pending review"
+      : reviewStatus === "rejected"
+        ? "Rejected"
+        : tier
+          ? `Live · Tier ${tier}`
+          : "Live";
+  const tierNote =
+    reviewStatus === "approved" && tier && claimedTier && tier !== claimedTier
+      ? `Tier ${tier} (you chose Tier ${claimedTier})`
+      : "";
+
   return (
     <article className="dashboard-data-card">
       <span>
         <strong>{event.title}</strong>
         <small>{venue}</small>
         <span className="organizer-event-meta">
+          <span className={`admin-badge admin-badge-${reviewStatus}`}>{statusLabel}</span>
           <span>{dates}</span>
           <span>{capacity ? `${registered} of ${capacity} registered` : `${registered} registered`}</span>
           <span>{formatPrice(event.price)}</span>
+          {tierNote ? <span>{tierNote}</span> : null}
         </span>
+        {reviewStatus === "rejected" && event.review_note ? (
+          <span className="org-field-error">Rejected: {event.review_note}</span>
+        ) : null}
       </span>
       <span className="filter-list">
         <Link className="text-link" to={`/organizer/registrations?event=${encodeURIComponent(event.id)}`}>

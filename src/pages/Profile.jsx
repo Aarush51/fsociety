@@ -3,7 +3,13 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import FriendCodeInput from "../components/FriendCodeInput";
 import { userIdForUser } from "../lib/userIds";
-import { SkillsFields, cleanHobbies, cleanInterests, cleanSkillLevels } from "../features/teams";
+import {
+  ReviewSummary,
+  SkillsFields,
+  cleanHobbies,
+  cleanInterests,
+  cleanSkillLevels,
+} from "../features/teams";
 import { Arrow, CopyIcon } from "../components/Icons";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
@@ -116,7 +122,8 @@ export default function Profile() {
     };
   }, []);
 
-  // Reviews the signed-in user received (team-scoped rows, so it goes through an RPC).
+  // Existing project reviews are read through their established RPC. Keep them
+  // separate from team-review averages and scores.
   useEffect(() => {
     if (!supabase) return undefined;
 
@@ -576,6 +583,7 @@ export default function Profile() {
             </div>
           </div>
         </section>
+        <ReviewSummary userId={user?.id} />
         <div className="profile-history-layout">
           <section className="dashboard-data-section" aria-label="Reviews you received">
             <div className="section-heading">

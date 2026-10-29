@@ -2,15 +2,21 @@ import { useEffect, useMemo, useState } from "react";
 import EventCard from "../components/EventCard";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
-import { demoHackathons } from "../lib/demoData";
 import { hackathonCardData } from "../lib/format";
 import { supabase } from "../lib/supabase";
 
 const HACKATHON_FIELDS =
-  "id, slug, title, organizer, description, category, location, prize, registration_deadline, starts_at, ends_at, status, venue_name, city, maps_url, capacity, price";
+  "id, slug, title, organizer, description, category, location, prize, registration_deadline, starts_at, ends_at, status, approval_status, tier, venue_name, city, maps_url, capacity, price";
+
+const TIER_SECTIONS = [
+  { tier: 1, fallbackLabel: "Tier 1 (highest)" },
+  { tier: 2, fallbackLabel: "Tier 2" },
+  { tier: 3, fallbackLabel: "Tier 3" },
+];
 
 export default function Hackathons() {
   const [rows, setRows] = useState(null);
+  const [tierSettings, setTierSettings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [sourceLabel, setSourceLabel] = useState("");
@@ -21,8 +27,10 @@ export default function Hackathons() {
 
   useEffect(() => {
     if (!supabase) {
-      setRows(demoHackathons);
-      setSourceLabel(" Showing sample hackathons. Configure Supabase to load live events.");
+      // Samples are not approved database rows, so do not show them on Discover.
+      setRows([]);
+      setTierSettings([]);
+      setSourceLabel(" Supabase is not configured; live hackathons cannot be loaded.");
       setLoading(false);
       setFailed(false);
       return undefined;
@@ -31,26 +39,36 @@ export default function Hackathons() {
     let active = true;
     setLoading(true);
     setFailed(false);
-    supabase
-      .from("hackathons")
-      .select(HACKATHON_FIELDS)
-      .in("status", ["upcoming", "active"])
-      .then(({ data, error }) => {
+    Promise.all([
+      supabase
+        .from("hackathons")
+        .select(HACKATHON_FIELDS)
+        .eq("approval_status", "approved")
+        .in("status", ["upcoming", "active"]),
+      supabase
+        .from("tier_settings")
+        .select("tier, label, description")
+        .order("tier", { ascending: true }),
+    ])
+      .then(([hackathonResult, tierResult]) => {
         if (!active) return;
-        if (error) throw error;
-        if (data?.length) {
-          setRows(data);
+        if (hackathonResult.error) throw hackathonResult.error;
+        if (tierResult.error) throw tierResult.error;
+        setTierSettings(tierResult.data || []);
+        if (hackathonResult.data?.length) {
+          setRows(hackathonResult.data);
           setSourceLabel("");
         } else {
-          setRows(demoHackathons);
-          setSourceLabel(" No live events yet; showing sample hackathons.");
+          setRows([]);
+          setSourceLabel("");
         }
       })
       .catch((error) => {
         if (!active) return;
         console.error("Could not load hackathons from Supabase.", error);
-        setRows(demoHackathons);
-        setSourceLabel(" Live events are unavailable; showing sample hackathons.");
+        setRows([]);
+        setTierSettings([]);
+        setSourceLabel(" Live events are unavailable.");
         setFailed(true);
       })
       .finally(() => {
@@ -96,6 +114,27 @@ export default function Hackathons() {
         return direction * (firstDeadline - secondDeadline);
       });
   }, [rows, search, selectedTheme, sortDirection]);
+
+  // Search, theme filtering and deadline ordering happen once above, so every
+  // section uses exactly the same result set. tier is the admin-assigned column;
+  // claimed_tier is deliberately neither selected nor consulted here.
+  const grouped = useMemo(() => {
+    const byTier = new Map(TIER_SECTIONS.map(({ tier }) => [tier, []]));
+    const more = [];
+    filtered.forEach((event) => {
+      const tier = Number(event.tier);
+      if (byTier.has(tier)) byTier.get(tier).push(event);
+      else more.push(event);
+    });
+    return [
+      ...TIER_SECTIONS.map((section) => ({
+        ...section,
+        settings: tierSettings.find((setting) => Number(setting.tier) === section.tier),
+        events: byTier.get(section.tier),
+      })),
+      { tier: null, fallbackLabel: "More hackathons", settings: null, events: more },
+    ];
+  }, [filtered, tierSettings]);
 
   const statusText = loading
     ? "Loading hackathons…"
@@ -172,10 +211,33 @@ export default function Hackathons() {
             </>
           ) : null}
         </p>
-        <div id="hackathon-results" className="event-grid" aria-busy={loading}>
-          {filtered.map((event) => (
-            <EventCard event={hackathonCardData(event)} key={event.id} />
-          ))}
+        <div id="hackathon-results" aria-busy={loading}>
+          {grouped.map((section) => {
+            if (!section.events.length) return null;
+            const heading = section.settings?.label || section.fallbackLabel;
+            return (
+              <section
+                className="hackathon-tier-section"
+                aria-labelledby={`hackathon-tier-${section.tier ?? "more"}`}
+                key={section.tier ?? "more"}
+              >
+                <div className="section-heading">
+                  <div>
+                    <p className="eyebrow">HACKATHONS</p>
+                    <h2 id={`hackathon-tier-${section.tier ?? "more"}`}>{heading}</h2>
+                    {section.settings?.description ? (
+                      <p className="muted section-description">{section.settings.description}</p>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="event-grid">
+                  {section.events.map((event) => (
+                    <EventCard event={hackathonCardData(event)} key={event.id} />
+                  ))}
+                </div>
+              </section>
+            );
+          })}
         </div>
         <div className="dark-callout">
           <div>
