@@ -5,6 +5,7 @@ import ParticipantRoute from "./components/ParticipantRoute";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AdminProvider } from "./context/AdminContext";
 import { AuthProvider } from "./context/AuthContext";
+import { FriendsProvider } from "./context/FriendsContext";
 import { OrganizationProvider } from "./context/OrganizationContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import Admin from "./pages/Admin";
@@ -13,6 +14,7 @@ import HackathonDetail from "./pages/HackathonDetail";
 import HackathonRegister from "./pages/HackathonRegister";
 import Hackathons from "./pages/Hackathons";
 import Home from "./pages/Home";
+import Huddle from "./pages/Huddle";
 import IdeaGenerator from "./pages/IdeaGenerator";
 import Leaderboard from "./pages/Leaderboard";
 import Login from "./pages/Login";
@@ -29,8 +31,9 @@ export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <OrganizationProvider>
-          <AdminProvider>
+        <FriendsProvider>
+          <OrganizationProvider>
+            <AdminProvider>
             <BrowserRouter>
               <Routes>
                 <Route element={<Layout />}>
@@ -65,14 +68,22 @@ export default function App() {
                       </ProtectedRoute>
                     }
                   />
-                  <Route
-                    path="profile"
-                    element={
-                      <ProtectedRoute>
-                        <Profile />
-                      </ProtectedRoute>
-                    }
-                  />
+                <Route
+                  path="profile"
+                  element={
+                    <ProtectedRoute>
+                      <Profile />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="huddle"
+                  element={
+                    <ProtectedRoute>
+                      <Huddle />
+                    </ProtectedRoute>
+                  }
+                />
                   <Route
                     path="organizer"
                     element={
@@ -118,9 +129,10 @@ export default function App() {
                   <Route path="*" element={<NotFound />} />
                 </Route>
               </Routes>
-            </BrowserRouter>
-          </AdminProvider>
-        </OrganizationProvider>
+              </BrowserRouter>
+            </AdminProvider>
+          </OrganizationProvider>
+        </FriendsProvider>
       </AuthProvider>
     </ThemeProvider>
   );

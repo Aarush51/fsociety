@@ -1,31 +1,51 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import EventCard from "../components/EventCard";
-import { Arrow } from "../components/Icons";
+import { Arrow, CopyIcon } from "../components/Icons";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
+import { useAuth } from "../context/AuthContext";
+import useHackathonRatings from "../hooks/useHackathonRatings";
 import { events } from "../lib/demoData";
-import { formatEventDate, formatNumber, formatReputation, initialsFromName, hackathonCardData } from "../lib/format";
+import {
+  formatEventDate,
+  formatNumber,
+  formatReputation,
+  initialsFromName,
+  hackathonCardData,
+} from "../lib/format";
+import { fetchMyHackathons, fetchMyRank, splitMyHackathons } from "../lib/personal";
 import { supabase } from "../lib/supabase";
-import { teamCodeFrom } from "../lib/teams";
 
 const HOME_HACKATHON_FIELDS =
   "id, slug, title, organizer, category, location, prize, registration_deadline, starts_at, ends_at, status, venue_name, city, maps_url, capacity, price";
 
 const shortcuts = [
   ["✳", "Explore events", "Find a challenge that excites you.", "/hackathons", "lime"],
-  ["↗", "My teams", "See the teams you’re building with.", "/teams", "blue"],
-  ["◉", "Update your profile", "Let the community know what you do.", "/profile", "peach"],
+  ["◎", "The Huddle", "Friends, requests and your teams.", "/huddle", "blue"],
+  ["◉", "Edit profile", "Keep your skills and interests current.", "/profile", "peach"],
 ];
 
+// The Dashboard is the personal page: your ID, your points and rank, the
+// hackathons you signed up for, what you bring, and the way to edit yourself.
+// The social half (friends, requests, teams, reviews) lives on /huddle, and the
+// profile editor lives on /profile, so the three pages never repeat each other.
 export default function Dashboard() {
+  const { user } = useAuth();
   const [dashboard, setDashboard] = useState(null);
+  const [me, setMe] = useState(null);
+  const [rank, setRank] = useState(null);
+  const [myHackathons, setMyHackathons] = useState([]);
+  const [extras, setExtras] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [upcoming, setUpcoming] = useState(events);
   const [eventsStatus, setEventsStatus] = useState("Loading hackathons…");
   const [eventsBusy, setEventsBusy] = useState(true);
+  const [copied, setCopied] = useState(false);
+  const [codeStatus, setCodeStatus] = useState({ text: "", error: false });
+  const ratings = useHackathonRatings(upcoming);
 
   const loadDashboard = useCallback(async () => {
     if (!supabase) return;
@@ -52,6 +72,39 @@ export default function Dashboard() {
       console.error("Could not load dashboard data.", requestError);
     });
   }, [loadDashboard, reloadKey]);
+
+  // Everything else the personal page shows. Each read is independent: a
+  // project without the newest SQL still gets its name, points and skills.
+  useEffect(() => {
+    if (!supabase || !user?.id) return undefined;
+    let active = true;
+
+    Promise.allSettled([
+      supabase.from("profiles").select("friend_code").eq("id", user.id).maybeSingle(),
+      fetchMyRank(),
+      fetchMyHackathons(),
+      supabase.rpc("get_my_profile_extras"),
+    ]).then(([profileResult, rankResult, hackathonResult, extrasResult]) => {
+      if (!active) return;
+      if (profileResult.status === "fulfilled") {
+        console.log("Current profile friend_code query result:", profileResult.value.data);
+        console.log("Current profile friend_code query error:", profileResult.value.error);
+        if (!profileResult.value.error) setMe(profileResult.value.data || null);
+      } else {
+        console.log("Current profile friend_code query result:", null);
+        console.error("Current profile friend_code query error:", profileResult.reason);
+      }
+      if (rankResult.status === "fulfilled") setRank(rankResult.value);
+      if (hackathonResult.status === "fulfilled") setMyHackathons(hackathonResult.value || []);
+      if (extrasResult.status === "fulfilled" && !extrasResult.value.error) {
+        setExtras(extrasResult.value.data || null);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [reloadKey, user?.id]);
 
   useEffect(() => {
     if (!supabase) {
@@ -93,11 +146,42 @@ export default function Dashboard() {
     };
   }, []);
 
+  // The copy button reads "Copied" for a moment, then returns to "Copy".
+  useEffect(() => {
+    if (!copied) return undefined;
+    const timer = setTimeout(() => {
+      setCopied(false);
+      setCodeStatus({ text: "", error: false });
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [copied]);
+
   const profile = dashboard?.profile;
-  const tasks = dashboard?.tasks || [];
-  const activeTasks = tasks.filter((task) => task.status !== "done");
-  const teams = dashboard?.teams || [];
   const projects = dashboard?.projects || [];
+  const tasks = dashboard?.tasks || [];
+  const friendCode = String(me?.friend_code || "");
+  const { current: registered, past } = splitMyHackathons(myHackathons);
+  const skills = Object.keys(extras?.skill_levels || {});
+  const interests = Array.isArray(extras?.interests) ? extras.interests : [];
+
+  const handleCopyFriendCode = async () => {
+    if (!friendCode) return;
+    try {
+      if (!navigator.clipboard?.writeText) {
+        throw new Error("Clipboard access is unavailable in this browser.");
+      }
+      await navigator.clipboard.writeText(friendCode);
+      setCopied(true);
+      setCodeStatus({ text: "Copied", error: false });
+    } catch (copyError) {
+      console.error("Could not copy the friend ID.", copyError);
+      setCopied(false);
+      setCodeStatus({
+        text: "Could not copy automatically — select the ID and copy it.",
+        error: true,
+      });
+    }
+  };
 
   const statusText = loading
     ? "Loading your activity…"
@@ -112,7 +196,7 @@ export default function Dashboard() {
         <PageIntro
           eyebrow="YOUR HACKMATE HOME BASE"
           title="Good things start with a first step."
-          description="A few ways to get moving: find an event, meet a collaborator, or share a little more about yourself."
+          description="Your ID, your points, the events you signed up for and the skills you bring — all in one place."
         />
         <div className="dashboard-greeting">
           <span className="avatar avatar-large lime" id="dashboard-avatar">
@@ -125,6 +209,9 @@ export default function Dashboard() {
               {profile ? `@${profile.username}` : ""}
             </p>
           </div>
+          <Link className="button button-outline" to="/profile">
+            Edit profile <Arrow diagonal />
+          </Link>
         </div>
         <p
           id="dashboard-status"
@@ -147,11 +234,71 @@ export default function Dashboard() {
             </>
           ) : null}
         </p>
+
+        <div className="friend-code-block">
+          <span className="eyebrow">YOUR ID</span>
+          <div className="friend-code-row">
+            <input
+              id="dashboard-friend-code"
+              type="text"
+              readOnly
+              value={friendCode}
+              placeholder="Not generated yet"
+              aria-label="Your HackMate ID"
+              onFocus={(event) => event.target.select()}
+            />
+            <button
+              id="dashboard-copy-friend-code"
+              className="button button-outline"
+              type="button"
+              onClick={handleCopyFriendCode}
+              disabled={!friendCode}
+              aria-label={copied ? "ID copied" : "Copy your six-digit friend ID"}
+            >
+              <CopyIcon />
+              {copied ? "Copied" : "Copy"}
+            </button>
+          </div>
+          <p className="muted tiny friend-code-share">
+            {friendCode ? (
+              <>
+                Share your ID: <strong>{friendCode}</strong> — friends can add you with it in the
+                Huddle.
+              </>
+            ) : (
+              "Your ID isn’t available yet."
+            )}
+          </p>
+          <p
+            id="dashboard-friend-code-message"
+            className="form-message"
+            role="status"
+            aria-live="polite"
+            data-error={codeStatus.error}
+          >
+            {codeStatus.text}
+          </p>
+        </div>
+
         <section id="dashboard-stats" className="profile-stats" aria-label="Your activity">
           <article>
-            <span className="eyebrow">COIN BALANCE</span>
-            <strong id="dashboard-coins">{dashboard ? formatNumber(dashboard.coin_balance) : "—"}</strong>
-            <span className="muted tiny">coins</span>
+            <span className="eyebrow">POINTS</span>
+            <strong id="dashboard-points">
+              {dashboard ? formatNumber(dashboard.coin_balance) : "—"}
+            </strong>
+            <span className="muted tiny">coins earned</span>
+          </article>
+          <article>
+            <span className="eyebrow">RANK</span>
+            <strong id="dashboard-rank">{rank ? `#${rank.position}` : "—"}</strong>
+            <span className="muted tiny">
+              {rank ? `of ${formatNumber(rank.total)} builders` : "No ranking yet"}
+            </span>
+          </article>
+          <article>
+            <span className="eyebrow">HACKATHONS</span>
+            <strong id="dashboard-hackathon-count">{formatNumber(registered.length)}</strong>
+            <span className="muted tiny">registered</span>
           </article>
           <article>
             <span className="eyebrow">REPUTATION</span>
@@ -163,16 +310,6 @@ export default function Dashboard() {
                 ? `${dashboard.review_count} ${dashboard.review_count === 1 ? "review" : "reviews"}`
                 : "Based on reviews"}
             </span>
-          </article>
-          <article>
-            <span className="eyebrow">TEAMS</span>
-            <strong id="dashboard-team-count">{dashboard ? teams.length : "—"}</strong>
-            <span className="muted tiny">joined</span>
-          </article>
-          <article>
-            <span className="eyebrow">TASKS</span>
-            <strong id="dashboard-task-count">{dashboard ? activeTasks.length : "—"}</strong>
-            <span className="muted tiny">on your teams</span>
           </article>
         </section>
         <div className="shortcut-grid">
@@ -186,32 +323,31 @@ export default function Dashboard() {
             </Link>
           ))}
         </div>
+
         <section className="dashboard-data-section">
           <div className="section-heading dashboard-heading">
             <div>
-              <p className="eyebrow">YOUR TEAMS</p>
-              <h2>Build together.</h2>
+              <p className="eyebrow">YOUR HACKATHONS</p>
+              <h2>Where you’re building.</h2>
             </div>
-            <Link className="text-link" to="/teams">
-              My teams <Arrow />
+            <Link className="text-link" to="/hackathons">
+              Find another <Arrow />
             </Link>
           </div>
-          <div id="dashboard-teams" className="dashboard-item-list" aria-live="polite">
-            {loading ? (
-              "Loading your teams…"
-            ) : error ? (
-              <p className="dashboard-empty">Your teams couldn’t be loaded.</p>
-            ) : teams.length ? (
-              teams.map((team) => (
+          <div id="dashboard-hackathons" className="dashboard-item-list" aria-live="polite">
+            {registered.length ? (
+              registered.map((hackathon) => (
                 <Link
                   className="dashboard-data-card"
-                  to={`/hackathons/${encodeURIComponent(team.hackathon_slug)}`}
-                  key={team.id}
+                  to={`/hackathons/${encodeURIComponent(hackathon.slug)}`}
+                  key={hackathon.id}
                 >
                   <span>
-                    <strong>{team.name}</strong>
-                    <small>                      {team.hackathon_title} · {team.role} · {team.member_count}/
-                      {team.size ?? team.max_members} members · {teamCodeFrom(team.id)}
+                    <strong>{hackathon.title}</strong>
+                    <small>
+                      {formatEventDate(hackathon.starts_at)} – {formatEventDate(hackathon.ends_at)}
+                      {hackathon.venue_name ? ` · ${hackathon.venue_name}` : ""}
+                      {hackathon.city ? `, ${hackathon.city}` : ""}
                     </small>
                   </span>
                   <Arrow diagonal />
@@ -219,11 +355,87 @@ export default function Dashboard() {
               ))
             ) : (
               <p className="dashboard-empty">
-                You haven’t joined a team yet. Register for a hackathon to form one.
+                You haven’t registered for a hackathon yet. Find one and form your team.
               </p>
             )}
           </div>
         </section>
+
+        {past.length ? (
+          <section className="dashboard-data-section">
+            <div className="section-heading dashboard-heading">
+              <div>
+                <p className="eyebrow">PAST HACKATHONS</p>
+                <h2>What you’ve already joined.</h2>
+              </div>
+            </div>
+            <div id="dashboard-past-hackathons" className="dashboard-item-list">
+              {past.map((hackathon) => (
+                <Link
+                  className="dashboard-data-card"
+                  to={`/hackathons/${encodeURIComponent(hackathon.slug)}`}
+                  key={hackathon.id}
+                >
+                  <span>
+                    <strong>{hackathon.title}</strong>
+                    <small>
+                      {formatEventDate(hackathon.starts_at)} – {formatEventDate(hackathon.ends_at)}
+                      {hackathon.city ? ` · ${hackathon.city}` : ""}
+                    </small>
+                  </span>
+                  <Arrow diagonal />
+                </Link>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        <section className="dashboard-data-section">
+          <div className="section-heading dashboard-heading">
+            <div>
+              <p className="eyebrow">WHAT YOU BRING</p>
+              <h2>Skills and interests.</h2>
+            </div>
+            <Link className="text-link" to="/profile">
+              Edit profile <Arrow />
+            </Link>
+          </div>
+          <div id="dashboard-skills" className="dashboard-item-list">
+            <div>
+              <p className="eyebrow">SKILLS</p>
+              <div className="profile-skill-list">
+                {skills.length ? (
+                  skills.map((skill) => (
+                    <span className="skill" key={skill}>
+                      {skill}
+                    </span>
+                  ))
+                ) : (
+                  <span className="muted tiny">
+                    No skills yet — add a few so teammates can find you.
+                  </span>
+                )}
+              </div>
+            </div>
+            <div>
+              <p className="eyebrow">INTERESTS</p>
+              <div className="profile-skill-list">
+                {interests.length ? (
+                  interests.map((interest) => (
+                    <span className="skill" key={interest}>
+                      {interest}
+                    </span>
+                  ))
+                ) : (
+                  <span className="muted tiny">
+                    No interests yet — tell people what you want to build for.
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section className="dashboard-data-section">
           <div className="section-heading dashboard-heading">
             <div>
@@ -300,7 +512,7 @@ export default function Dashboard() {
         </p>
         <div id="dashboard-events" className="event-grid" aria-busy={eventsBusy}>
           {upcoming.map((event) => (
-            <EventCard event={event} key={event.id} />
+            <EventCard event={{ ...event, rating: ratings[event.uuid] }} key={event.id} />
           ))}
         </div>
       </main>

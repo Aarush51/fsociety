@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Arrow } from "../components/Icons";
 import PageTitle from "../components/PageTitle";
+import EventReviews from "../components/EventReviews";
 import RegistrationCTA from "../components/RegistrationCTA";
 import { events } from "../lib/demoData";
 import { formatEventDate, formatPrice, hackathonCardData } from "../lib/format";
@@ -196,7 +197,9 @@ export default function HackathonDetail() {
       .from("hackathons")
       .select(DETAIL_FIELDS)
       .eq("slug", slug)
-      .in("status", ["upcoming", "active"])
+      // 'completed' events stay readable for the organizers and admins that RLS
+      // already allows, so a finished hackathon's Reviews anchor still resolves.
+      .in("status", ["upcoming", "active", "completed"])
       .maybeSingle()
       .then(({ data, error: requestError }) => {
         if (!active) return;
@@ -242,6 +245,7 @@ export default function HackathonDetail() {
           </section>
         ) : null}
         {!loading && hackathon ? <DatabaseDetail hackathon={hackathon} /> : null}
+        {!loading && hackathon ? <EventReviews hackathon={hackathon} /> : null}
         {!loading && !hackathon && sampleEvent ? <SampleDetail event={sampleEvent} /> : null}
         {!loading && !hackathon && !sampleEvent && notFound ? (
           <section

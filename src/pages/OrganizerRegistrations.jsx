@@ -248,7 +248,7 @@ export default function OrganizerRegistrations() {
                 <div className="team-card-heading">
                   <div>
                     <p className="eyebrow">
-                      #{String(index + 1).padStart(2, "0")} · ID {displayUserId({ id: row.user_id })}{" "}
+                      #{String(index + 1).padStart(2, "0")} · ID {displayUserId(person)}{" "}
                       · REGISTERED {formatEventDate(row.created_at)}
                     </p>
                     <h2>{person ? person.full_name : "Waiting for a team"}</h2>

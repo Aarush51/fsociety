@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
+import DraftRestoredNote from "../components/DraftRestoredNote";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
 import { useAuth } from "../context/AuthContext";
 import { useOrganization } from "../context/OrganizationContext";
+import useFormDraft from "../hooks/useFormDraft";
 import {
   ORGANIZATION_TYPES,
   ORG_EMAIL_HINT,
@@ -47,7 +49,10 @@ export default function OrganizationRegister() {
   const { organization, loading, refresh } = useOrganization();
   const navigate = useNavigate();
   const notice = useLocation().state?.notice;
-  const [values, setValues] = useState(EMPTY_FORM);
+  const [values, setValues, clearDraft, draftRestored] = useFormDraft(
+    `organization-register.${user?.id ?? "anonymous"}`,
+    EMPTY_FORM,
+  );
   const [errors, setErrors] = useState({});
   const [message, setMessage] = useState({ text: "", error: false });
   const [submitting, setSubmitting] = useState(false);
@@ -81,6 +86,7 @@ export default function OrganizationRegister() {
     setMessage({ text: "", error: false });
     try {
       await createOrganization(user.id, values);
+      clearDraft();
       await refresh();
       navigate("/organizer");
     } catch (error) {
@@ -103,6 +109,15 @@ export default function OrganizationRegister() {
           <p className="form-message" role="status" aria-live="polite">
             {notice}
           </p>
+        ) : null}
+        {draftRestored ? (
+          <DraftRestoredNote
+            onStartOver={() => {
+              clearDraft();
+              setErrors({});
+              setMessage({ text: "", error: false });
+            }}
+          />
         ) : null}
         <form className="org-form" onSubmit={handleSubmit} noValidate>
           <Field label="Who is organizing?" error={errors.org_type}>

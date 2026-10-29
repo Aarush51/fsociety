@@ -1,4 +1,5 @@
 import { ORGANIZATION_FIELDS } from "./organizations";
+import { isReviewsUnavailable } from "./reviews";
 import { supabase } from "./supabase";
 
 // Admin helpers. Access is enforced by Row Level Security: these calls only see
@@ -75,4 +76,42 @@ export async function reviewOrganization(id, { status, reviewNote = null }) {
     );
   }
   return data[0];
+}
+
+// Every event review, hidden ones included, newest first. RLS returns an empty
+// list for non-admins and the function itself checks public.is_admin().
+export async function loadEventReviewsForModeration() {
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { data, error } = await supabase.rpc("list_event_reviews_for_admin");
+  if (error) {
+    if (isReviewsUnavailable(error)) return [];
+    throw error;
+  }
+  return Array.isArray(data) ? data : [];
+}
+
+// Hide or unhide one event review. Only admins pass Row Level Security and the
+// guard trigger, so an empty result means the change did not happen.
+export async function setEventReviewHidden(reviewId, hidden) {
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { data, error } = await supabase
+    .from("event_reviews")
+    .update({ hidden: Boolean(hidden) })
+    .eq("id", reviewId)
+    .select("id, hidden")
+    .maybeSingle();
+  if (error) {
+    if (isReviewsUnavailable(error)) {
+      throw new Error(
+        "Reviews are not available yet: run the event reviews migration in Supabase first.",
+      );
+    }
+    throw error;
+  }
+  if (!data) {
+    throw new Error(
+      "The database blocked the change: only admins can hide or unhide a review.",
+    );
+  }
+  return data;
 }

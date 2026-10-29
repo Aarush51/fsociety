@@ -3,6 +3,7 @@ import EventCard from "../components/EventCard";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
 import { demoHackathons } from "../lib/demoData";
+import useHackathonRatings from "../hooks/useHackathonRatings";
 import { hackathonCardData } from "../lib/format";
 import { supabase } from "../lib/supabase";
 
@@ -97,6 +98,8 @@ export default function Hackathons() {
       });
   }, [rows, search, selectedTheme, sortDirection]);
 
+  const ratings = useHackathonRatings(filtered);
+
   const statusText = loading
     ? "Loading hackathons…"
     : filtered.length
@@ -174,7 +177,10 @@ export default function Hackathons() {
         </p>
         <div id="hackathon-results" className="event-grid" aria-busy={loading}>
           {filtered.map((event) => (
-            <EventCard event={hackathonCardData(event)} key={event.id} />
+            <EventCard
+              event={{ ...hackathonCardData(event), rating: ratings[event.id] }}
+              key={event.id}
+            />
           ))}
         </div>
         <div className="dark-callout">
