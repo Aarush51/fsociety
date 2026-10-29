@@ -17,6 +17,7 @@ import { Arrow } from "./Icons";
 
 function MemberRow({ member, userId }) {
   const skills = member.skills || [];
+  const reputation = Number(member.reputation) || 0;
   return (
     <div className="team-member">
       <span className={`avatar avatar-small ${member.id === userId ? "lime" : "blue"}`}>
@@ -41,6 +42,15 @@ function MemberRow({ member, userId }) {
           )}
         </div>
       </div>
+      {reputation ? (
+        <span className="team-reputation">
+          {reputation.toFixed(1)} ★
+          <small>
+            {Number(member.review_count) || 0}{" "}
+            {Number(member.review_count) === 1 ? "review" : "reviews"}
+          </small>
+        </span>
+      ) : null}
     </div>
   );
 }
