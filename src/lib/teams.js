@@ -86,3 +86,52 @@ export async function joinHackathonTeam(teamId) {
   const { error } = await supabase.rpc("join_hackathon_team", { p_team_id: teamId });
   if (error) throw new Error(error.message || "You could not join that team.");
 }
+
+// Clear, specific messages for every answer the join RPC can give.
+export const JOIN_TEAM_MESSAGES = {
+  not_signed_in: "Log in to join a team.",
+  invalid_id: "Paste the team ID you were given.",
+  unknown_team: "No team with that ID. Check the ID and try again.",
+  wrong_hackathon: "That team is in a different hackathon. Use the ID shared for this event.",
+  team_full: "That team is full. Ask its leader to free a spot, or make a team of your own.",
+  already_in_team: "You’re already on a team for this hackathon.",
+  not_registered: "Register for this hackathon before joining a team.",
+  hackathon_closed: "This hackathon is no longer open for teams.",
+};
+
+function isMissingRpc(error) {
+  return (
+    error?.code === "PGRST202" ||
+    /could not find the function|function .* does not exist/i.test(String(error?.message || ""))
+  );
+}
+
+// Join by the ID a team leader shared. The database resolves the uuid (or its
+// short code), then checks the team belongs to this hackathon, that the caller
+// is registered, not already on a team here, and that a spot is still open.
+// Older databases without that RPC fall back to the existing join call plus the
+// checks this page can do on its own.
+export async function joinTeamById({ hackathonId, teamCode, teams = [] }) {
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const code = String(teamCode || "").trim();
+  if (!code) throw new Error(JOIN_TEAM_MESSAGES.invalid_id);
+
+  const { data, error } = await supabase.rpc("join_hackathon_team_by_id", {
+    p_hackathon_id: hackathonId,
+    p_team_code: code,
+  });
+
+  if (!error) {
+    if (data?.ok) return { teamId: data.team_id, teamName: data.team_name };
+    throw new Error(JOIN_TEAM_MESSAGES[data?.error] || "That team could not be joined.");
+  }
+  if (!isMissingRpc(error)) {
+    throw new Error(error.message || "That team could not be joined.");
+  }
+
+  console.warn("join_hackathon_team_by_id is missing; run the latest team migration.");
+  const team = findTeamsByQuery(teams, code)[0];
+  if (!team) throw new Error(JOIN_TEAM_MESSAGES.unknown_team);
+  await joinHackathonTeam(team.id);
+  return { teamId: team.id, teamName: team.name };
+}

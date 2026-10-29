@@ -4,8 +4,8 @@ import { initialsFromName, shortName } from "../lib/format";
 import { rankTeamsForMe } from "../lib/skillMatch";
 import {
   createHackathonTeam,
-  findTeamsByQuery,
   joinHackathonTeam,
+  joinTeamById,
   memberCount,
   openSpots,
   teamCodeFrom,
@@ -88,16 +88,16 @@ function TeamCard({ team, userId, reasons, badge, action, children }) {
 }
 
 /**
- * The post-registration formation step:
- *   Make a team   — name it, pick a size, get its unique ID
- *   Join a team   — browse the directory or paste a team ID
+ * The post-registration formation step (only shown once registered):
+ *   Make a team   — name it, pick a size, get its unique ID to share
+ *   Join a team   — paste the team ID you were given; no directory is shown
  *   Skill match   — ranked by what you add, share and would learn
  */
 export default function TeamFormation({ hackathon, userId, mySkills, teams, myTeam, onChanged }) {
   const [choice, setChoice] = useState(null);
   const [form, setForm] = useState({ name: "", description: "", size: "4" });
   const [fieldErrors, setFieldErrors] = useState({});
-  const [query, setQuery] = useState("");
+  const [joinCode, setJoinCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState({ text: "", error: false });
   const [copied, setCopied] = useState(false);
@@ -105,10 +105,6 @@ export default function TeamFormation({ hackathon, userId, mySkills, teams, myTe
   const rankedTeams = useMemo(
     () => rankTeamsForMe(mySkills || [], teams || []).slice(0, 6),
     [mySkills, teams],
-  );
-  const joinMatches = useMemo(
-    () => (query.trim() ? findTeamsByQuery(teams || [], query) : teams || []),
-    [teams, query],
   );
 
   const run = async (action, successText) => {
@@ -152,6 +148,48 @@ export default function TeamFormation({ hackathon, userId, mySkills, teams, myTe
       () => joinHackathonTeam(team.id),
       `You joined “${team.name}” · team ID ${teamCodeFrom(team.id)}.`,
     );
+
+  // Join by the ID a leader shared. There is no team directory here: the ID is
+  // resolved by the database, which also checks the hackathon, registration,
+  // existing membership and the team's size limit.
+  const handleJoinById = async (event) => {
+    event.preventDefault();
+    if (busy) return;
+    if (!joinCode.trim()) {
+      setMessage({ text: "Paste the team ID you were given.", error: true });
+      return;
+    }
+    if (myTeam) {
+      setMessage({
+        text: `You’re already on “${myTeam.name}” for this hackathon.`,
+        error: true,
+      });
+      return;
+    }
+
+    setBusy(true);
+    setMessage({ text: "", error: false });
+    try {
+      const joined = await joinTeamById({
+        hackathonId: hackathon.id,
+        teamCode: joinCode,
+        teams,
+      });
+      setJoinCode("");
+      await onChanged();
+      setMessage({
+        text: `You joined “${joined.teamName}” · team ID ${teamCodeFrom(joined.teamId)}.`,
+        error: false,
+      });
+    } catch (joinError) {
+      setMessage({
+        text: joinError.message || "That team could not be joined. Please try again.",
+        error: true,
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const copyTeamId = async () => {
     if (!myTeam) return;
@@ -294,35 +332,32 @@ export default function TeamFormation({ hackathon, userId, mySkills, teams, myTe
       ) : null}
 
       {choice === "join" ? (
-        <div className="team-browser">
-          <label htmlFor="team-join-search">Find a team by its ID</label>
+        <form className="org-form" onSubmit={handleJoinById} noValidate>
+          <label htmlFor="team-join-id">Team ID</label>
           <input
-            id="team-join-search"
+            id="team-join-id"
+            name="team_id"
             type="text"
-            placeholder="Paste a team ID or code, e.g. 4F2A-91C7"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            autoComplete="off"
+            placeholder="Paste the team ID you were given, e.g. 4F2A-91C7"
+            value={joinCode}
+            onChange={(event) => {
+              setJoinCode(event.target.value);
+              setMessage({ text: "", error: false });
+            }}
           />
           <p className="muted tiny">
-            {joinMatches.length
-              ? `${joinMatches.length} team${joinMatches.length === 1 ? "" : "s"} found — ${joinMatches.filter((team) => openSpots(team) > 0).length} with open spots.`
-              : "No team matches that ID yet. Ask them to share it again."}
+            Ask the team leader for their team ID. You can paste it with or without the dash.
           </p>
-          <div className="team-list" aria-live="polite">
-            {joinMatches.map((team) => (
-              <TeamCard team={team} userId={userId} key={team.id}>
-                <button
-                  className="button button-dark"
-                  type="button"
-                  disabled={busy || openSpots(team) <= 0}
-                  onClick={() => handleJoin(team)}
-                >
-                  {openSpots(team) <= 0 ? "Team is full" : busy ? "Joining…" : "Join this team"}
-                </button>
-              </TeamCard>
-            ))}
+          <div className="org-form-actions">
+            <button className="button button-dark" type="submit" disabled={busy}>
+              {busy ? "Joining…" : "Join"}
+            </button>
+            <button className="text-link" type="button" onClick={() => setChoice(null)}>
+              Decide later
+            </button>
           </div>
-        </div>
+        </form>
       ) : null}
 
       {choice === "skill" ? (

@@ -111,6 +111,15 @@ export default function Teams() {
                   >
                     Open hackathon <Arrow />
                   </Link>
+                  {/* Placeholder only: team chat lives on its own branch. */}
+                  <button
+                    className="button button-outline"
+                    type="button"
+                    disabled
+                    aria-label={`Team chat for ${team.name} (coming soon)`}
+                  >
+                    Chat
+                  </button>
                 </div>
                 <Reviews hackathonSlug={team.hackathon_slug} userId={user?.id} />
               </article>
