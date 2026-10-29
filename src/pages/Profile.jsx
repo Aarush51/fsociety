@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-<<<<<<< HEAD
 import FriendCodeInput from "../components/FriendCodeInput";
-import { userIdForUser } from "../lib/userIds";
+import DraftRestoredNote from "../components/DraftRestoredNote";
+import StarRating from "../components/StarRating";
+import useFormDraft from "../hooks/useFormDraft";
 import {
   ReviewSummary,
   SkillsFields,
@@ -11,16 +12,10 @@ import {
   cleanInterests,
   cleanSkillLevels,
 } from "../features/teams";
-import { Arrow, CopyIcon } from "../components/Icons";
-=======
-import DraftRestoredNote from "../components/DraftRestoredNote";
-import useFormDraft from "../hooks/useFormDraft";
-import { SkillsFields, cleanHobbies, cleanInterests, cleanSkillLevels } from "../features/teams";
 import { Arrow } from "../components/Icons";
->>>>>>> dba09642439d0269aa9a22867da2b2752b4f506c
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
-import { formatEventDate, formatNumber, initialsFromName } from "../lib/format";
+import { formatEventDate, formatNumber, initialsFromName, shortName } from "../lib/format";
 import { supabase } from "../lib/supabase";
 
 const EMPTY_PROFILE_DRAFT = {
@@ -63,6 +58,10 @@ export default function Profile() {
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState({ text: "Loading your profile…", error: false });
+  const [friends, setFriends] = useState([]);
+  const [reviews, setReviews] = useState([]);
+  const [reviewsLoading, setReviewsLoading] = useState(true);
+  const [reviewsError, setReviewsError] = useState(null);
   const [ledger, setLedger] = useState(null);
   const [ledgerLoading, setLedgerLoading] = useState(true);
   const [ledgerError, setLedgerError] = useState(null);
@@ -81,6 +80,11 @@ export default function Profile() {
   const setSkillLevels = setField("skill_levels");
   const setInterests = setField("interests");
   const setHobbies = setField("hobbies");
+  const handleFriendFound = (friend) => {
+    setFriends((current) =>
+      current.some((existing) => existing.id === friend.id) ? current : [...current, friend],
+    );
+  };
 
   useEffect(() => {
     if (!supabase) return undefined;
@@ -119,7 +123,6 @@ export default function Profile() {
     };
   }, []);
 
-<<<<<<< HEAD
   // Existing project reviews are read through their established RPC. Keep them
   // separate from team-review averages and scores.
   useEffect(() => {
@@ -149,9 +152,6 @@ export default function Profile() {
       active = false;
     };
   }, [historyKey]);
-
-=======
->>>>>>> dba09642439d0269aa9a22867da2b2752b4f506c
   // The caller's own coin ledger, newest first. The RPC caps the page at 200 rows.
   useEffect(() => {
     if (!supabase) return undefined;
@@ -499,7 +499,6 @@ export default function Profile() {
             </section>
           </div>
         </div>
-<<<<<<< HEAD
         <section className="dashboard-data-section" aria-label="Add a friend with a friend ID">
           <div className="section-heading">
             <div>
@@ -582,7 +581,7 @@ export default function Profile() {
                             .join(" · ")}
                         </small>
                       </div>
-                      <Stars rating={review.rating} />
+                      <StarRating value={review.rating} />
                     </div>
                     {review.comment ? (
                       <p className="profile-review-comment">{review.comment}</p>
@@ -599,9 +598,6 @@ export default function Profile() {
             </div>
           </section>
           <section className="dashboard-data-section" aria-label="Coin history">
-=======
-        <section className="dashboard-data-section" aria-label="Coin history">
->>>>>>> dba09642439d0269aa9a22867da2b2752b4f506c
             <div className="section-heading">
               <div>
                 <p className="eyebrow">COIN HISTORY</p>
@@ -674,7 +670,8 @@ export default function Profile() {
                 </p>
               )
             ) : null}
-        </section>
+          </section>
+        </div>
       </main>
     </>
   );

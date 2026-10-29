@@ -2,11 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import EventCard from "../components/EventCard";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
-<<<<<<< HEAD
-=======
-import { demoHackathons } from "../lib/demoData";
 import useHackathonRatings from "../hooks/useHackathonRatings";
->>>>>>> dba09642439d0269aa9a22867da2b2752b4f506c
 import { hackathonCardData } from "../lib/format";
 import { supabase } from "../lib/supabase";
 
@@ -120,7 +116,6 @@ export default function Hackathons() {
       });
   }, [rows, search, selectedTheme, sortDirection]);
 
-<<<<<<< HEAD
   // Search, theme filtering and deadline ordering happen once above, so every
   // section uses exactly the same result set. tier is the admin-assigned column;
   // claimed_tier is deliberately neither selected nor consulted here.
@@ -141,9 +136,7 @@ export default function Hackathons() {
       { tier: null, fallbackLabel: "More hackathons", settings: null, events: more },
     ];
   }, [filtered, tierSettings]);
-=======
   const ratings = useHackathonRatings(filtered);
->>>>>>> dba09642439d0269aa9a22867da2b2752b4f506c
 
   const statusText = loading
     ? "Loading hackathons…"
@@ -220,7 +213,6 @@ export default function Hackathons() {
             </>
           ) : null}
         </p>
-<<<<<<< HEAD
         <div id="hackathon-results" aria-busy={loading}>
           {grouped.map((section) => {
             if (!section.events.length) return null;
@@ -242,21 +234,18 @@ export default function Hackathons() {
                 </div>
                 <div className="event-grid">
                   {section.events.map((event) => (
-                    <EventCard event={hackathonCardData(event)} key={event.id} />
+                    <EventCard
+                      event={{
+                        ...hackathonCardData(event),
+                        rating: ratings[event.id],
+                      }}
+                      key={event.id}
+                    />
                   ))}
                 </div>
               </section>
             );
           })}
-=======
-        <div id="hackathon-results" className="event-grid" aria-busy={loading}>
-          {filtered.map((event) => (
-            <EventCard
-              event={{ ...hackathonCardData(event), rating: ratings[event.id] }}
-              key={event.id}
-            />
-          ))}
->>>>>>> dba09642439d0269aa9a22867da2b2752b4f506c
         </div>
         <div className="dark-callout">
           <div>

@@ -1,10 +1,6 @@
 import { useState } from "react";
-<<<<<<< HEAD
-import { Link, Navigate } from "react-router-dom";
-=======
-import { Link, Navigate, useNavigate } from "react-router-dom";
 import DraftRestoredNote from "../components/DraftRestoredNote";
->>>>>>> dba09642439d0269aa9a22867da2b2752b4f506c
+import { Navigate } from "react-router-dom";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
 import { useAuth } from "../context/AuthContext";
@@ -81,15 +77,10 @@ function Field({ label, hint, error, children }) {
 export default function OrganizerHostHackathon() {
   const { user } = useAuth();
   const { organization, loading } = useOrganization();
-<<<<<<< HEAD
-  const [values, setValues] = useState(EMPTY_FORM);
-=======
-  const navigate = useNavigate();
   const [values, setValues, clearDraft, draftRestored] = useFormDraft(
     `host-hackathon.${user?.id ?? "anonymous"}`,
     EMPTY_FORM,
   );
->>>>>>> dba09642439d0269aa9a22867da2b2752b4f506c
   const [errors, setErrors] = useState({});
   const [message, setMessage] = useState({ text: "", error: false });
   const [submitting, setSubmitting] = useState(false);
@@ -144,15 +135,10 @@ export default function OrganizerHostHackathon() {
     setMessage({ text: "", error: false });
     try {
       await createHackathon({ organization, user, values });
-<<<<<<< HEAD
       // The event is pending review now, so it is not on the public pages yet.
       // Stay on the form, say what happens next, and clear it for the next one.
-      setValues(EMPTY_FORM);
-      setMessage({ text: SUBMITTED_MESSAGE, error: false });
-=======
       clearDraft();
-      navigate("/organizer");
->>>>>>> dba09642439d0269aa9a22867da2b2752b4f506c
+      setMessage({ text: SUBMITTED_MESSAGE, error: false });
     } catch (error) {
       // createHackathon keeps the raw Postgres message in here on purpose.
       setMessage({ text: error.message || "Your hackathon could not be saved.", error: true });

@@ -6,22 +6,15 @@ import PageTitle from "../components/PageTitle";
 import StarRating from "../components/StarRating";
 import { useAdmin } from "../context/AdminContext";
 import {
-<<<<<<< HEAD
+  loadEventReviewsForModeration,
   loadHackathonsForReview,
   loadOrganizationsForReview,
   loadTierSettings,
   reviewHackathon,
   reviewOrganization,
-} from "../lib/admin";
-import { formatEventDate, formatPrice } from "../lib/format";
-=======
-  loadEventReviewsForModeration,
-  loadOrganizationsForReview,
-  reviewOrganization,
   setEventReviewHidden,
 } from "../lib/admin";
-import { formatEventDate } from "../lib/format";
->>>>>>> dba09642439d0269aa9a22867da2b2752b4f506c
+import { formatEventDate, formatPrice } from "../lib/format";
 import { organizationTypeLabel } from "../lib/organizations";
 
 const TABS = [
@@ -562,7 +555,6 @@ export default function Admin() {
   const [tab, setTab] = useState("pending");
   const [busyId, setBusyId] = useState(null);
   const [message, setMessage] = useState({ text: "", error: false });
-<<<<<<< HEAD
   // Hackathon review has its own queue, tabs and messages so a failure in one
   // section never blanks the other.
   const [hackathons, setHackathons] = useState(null);
@@ -570,12 +562,10 @@ export default function Admin() {
   const [hackathonTab, setHackathonTab] = useState("pending");
   const [hackathonError, setHackathonError] = useState(null);
   const [hackathonMessage, setHackathonMessage] = useState({ text: "", error: false });
-=======
   const [eventReviews, setEventReviews] = useState(null);
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [reviewsError, setReviewsError] = useState(null);
   const [togglingId, setTogglingId] = useState(null);
->>>>>>> dba09642439d0269aa9a22867da2b2752b4f506c
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -737,11 +727,9 @@ export default function Admin() {
   };
 
   const visible = (organizations || []).filter((organization) => organization.status === tab);
-<<<<<<< HEAD
   const visibleHackathons = (hackathons || []).filter(
     (hackathon) => hackathon.approval_status === hackathonTab,
   );
-=======
   const showingReviews = tab === "reviews";
 
   const toggleReview = async (reviewRow) => {
@@ -777,7 +765,6 @@ export default function Admin() {
       : loadError
         ? loadError.message || "The review queue could not be loaded."
         : message.text;
->>>>>>> dba09642439d0269aa9a22867da2b2752b4f506c
 
   return (
     <>
@@ -834,76 +821,74 @@ export default function Admin() {
             )}
           </div>
         ) : (
-          <div className="admin-list" aria-busy={loading}>
-          {loading && !organizations ? null : visible.length ? (
-            visible.map((organization) => (
-              <OrganizationCard
-                key={organization.id}
-                organization={organization}
-                busy={busyId === organization.id}
-                onApprove={(target) => review(target, "approved")}
-                onReject={(target, reason) => review(target, "rejected", reason)}
-              />
-            ))
-          ) : (
-            <p className="dashboard-empty">{EMPTY_COPY[tab]}</p>
-          )}
-<<<<<<< HEAD
-        </div>
-
-        <section className="org-form-section" aria-label="Hackathon review">
-          <p className="eyebrow">HACKATHONS</p>
-          <div className="organizer-toolbar admin-toolbar">
-            <div className="filter-list" aria-label="Filter hackathons by status">
-              {HACKATHON_TABS.map((option) => (
-                <button
-                  className={`${hackathonTab === option.value ? "filter-active" : "skill"} hackathon-theme`}
-                  type="button"
-                  aria-pressed={hackathonTab === option.value}
-                  key={option.value}
-                  onClick={() => setHackathonTab(option.value)}
-                >
-                  {option.label} ({hackathonCounts[option.value]})
-                </button>
-              ))}
+          <>
+            <div className="admin-list" aria-busy={loading}>
+              {loading && !organizations ? null : visible.length ? (
+                visible.map((organization) => (
+                  <OrganizationCard
+                    key={organization.id}
+                    organization={organization}
+                    busy={busyId === organization.id}
+                    onApprove={(target) => review(target, "approved")}
+                    onReject={(target, reason) => review(target, "rejected", reason)}
+                  />
+                ))
+              ) : (
+                <p className="dashboard-empty">{EMPTY_COPY[tab]}</p>
+              )}
             </div>
-          </div>
 
-          <p
-            className="registration-status"
-            role="status"
-            aria-live="polite"
-            data-error={hackathonMessage.error}
-          >
-            {loading
-              ? "Loading hackathons…"
-              : hackathonError
-                ? hackathonError.message || "The hackathon queue could not be loaded."
-                : hackathonMessage.text}
-          </p>
+            <section className="org-form-section" aria-label="Hackathon review">
+              <p className="eyebrow">HACKATHONS</p>
+              <div className="organizer-toolbar admin-toolbar">
+                <div className="filter-list" aria-label="Filter hackathons by status">
+                  {HACKATHON_TABS.map((option) => (
+                    <button
+                      className={`${hackathonTab === option.value ? "filter-active" : "skill"} hackathon-theme`}
+                      type="button"
+                      aria-pressed={hackathonTab === option.value}
+                      key={option.value}
+                      onClick={() => setHackathonTab(option.value)}
+                    >
+                      {option.label} ({hackathonCounts[option.value]})
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-          <div className="admin-list" aria-busy={loading}>
-            {loading && !hackathons ? null : visibleHackathons.length ? (
-              visibleHackathons.map((hackathon) => (
-                <HackathonCard
-                  key={hackathon.id}
-                  hackathon={hackathon}
-                  organization={organizationsById.get(hackathon.organization_id) || null}
-                  earlierEvents={earlierEventsFor(hackathon)}
-                  tierSettings={tierSettings}
-                  busy={busyId === hackathon.id}
-                  onReview={reviewEvent}
-                />
-              ))
-            ) : (
-              <p className="dashboard-empty">{EMPTY_HACKATHON_COPY[hackathonTab]}</p>
-            )}
-          </div>
-        </section>
-=======
-          </div>
+              <p
+                className="registration-status"
+                role="status"
+                aria-live="polite"
+                data-error={hackathonMessage.error}
+              >
+                {loading
+                  ? "Loading hackathons…"
+                  : hackathonError
+                    ? hackathonError.message || "The hackathon queue could not be loaded."
+                    : hackathonMessage.text}
+              </p>
+
+              <div className="admin-list" aria-busy={loading}>
+                {loading && !hackathons ? null : visibleHackathons.length ? (
+                  visibleHackathons.map((hackathon) => (
+                    <HackathonCard
+                      key={hackathon.id}
+                      hackathon={hackathon}
+                      organization={organizationsById.get(hackathon.organization_id) || null}
+                      earlierEvents={earlierEventsFor(hackathon)}
+                      tierSettings={tierSettings}
+                      busy={busyId === hackathon.id}
+                      onReview={reviewEvent}
+                    />
+                  ))
+                ) : (
+                  <p className="dashboard-empty">{EMPTY_HACKATHON_COPY[hackathonTab]}</p>
+                )}
+              </div>
+            </section>
+          </>
         )}
->>>>>>> dba09642439d0269aa9a22867da2b2752b4f506c
       </main>
     </>
   );

@@ -21,7 +21,6 @@ function EventRow({ event, rating }) {
   const dates = `${formatEventDate(event.starts_at)} – ${formatEventDate(event.ends_at)}`;
   const registered = Number(event.registered_count) || 0;
   const capacity = Number(event.capacity) || 0;
-<<<<<<< HEAD
 
   // Review state. The admin's tier is the real one; the organizer's claim is
   // only shown when the two differ, so the row stays quiet in the common case.
@@ -40,10 +39,7 @@ function EventRow({ event, rating }) {
     reviewStatus === "approved" && tier && claimedTier && tier !== claimedTier
       ? `Tier ${tier} (you chose Tier ${claimedTier})`
       : "";
-
-=======
   const ended = event.ends_at ? new Date(event.ends_at).getTime() <= Date.now() : false;
->>>>>>> dba09642439d0269aa9a22867da2b2752b4f506c
   return (
     <article className="dashboard-data-card">
       <span>
@@ -54,9 +50,7 @@ function EventRow({ event, rating }) {
           <span>{dates}</span>
           <span>{capacity ? `${registered} of ${capacity} registered` : `${registered} registered`}</span>
           <span>{formatPrice(event.price)}</span>
-<<<<<<< HEAD
           {tierNote ? <span>{tierNote}</span> : null}
-=======
           {ended ? (
             <span className="event-rating">
               <StarRating value={rating?.average || 0} />
@@ -66,7 +60,6 @@ function EventRow({ event, rating }) {
               </Link>
             </span>
           ) : null}
->>>>>>> dba09642439d0269aa9a22867da2b2752b4f506c
         </span>
         {reviewStatus === "rejected" && event.review_note ? (
           <span className="org-field-error">Rejected: {event.review_note}</span>
