@@ -111,7 +111,7 @@ export default function Hackathons() {
   return (
     <>
       <PageTitle title="Hackathons | HackMate" />
-      <main className="page-main wrap">
+      <main className="page-main wrap hackathons-page">
         <PageIntro
           eyebrow="FIND YOUR NEXT CHALLENGE"
           title="Good ideas start with showing up."

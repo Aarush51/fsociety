@@ -1312,3 +1312,101 @@ html[data-theme="dark"] .admin-reject textarea { border-color: var(--line); back
   .org-form { padding: 19px; }
   .admin-card { padding: 17px; }
 }
+
+/* Hackathons keeps its own natural page flow so the event catalog can scroll. */
+.page-main.hackathons-page {
+  width: min(calc(100% - 40px), 1200px);
+  min-height: 0;
+  height: auto;
+  max-height: none;
+  overflow: visible;
+  padding-block: 64px 88px;
+}
+
+.page-main.hackathons-page .page-intro {
+  margin-bottom: 0;
+}
+
+.page-main.hackathons-page .hackathon-controls {
+  margin-block: 34px 18px;
+}
+
+.page-main.hackathons-page .hackathon-filter-row {
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.page-main.hackathons-page .filter-list {
+  min-width: 0;
+}
+
+.page-main.hackathons-page .event-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  overflow: visible;
+}
+
+.page-main.hackathons-page .event-grid .event-card:last-child:nth-child(odd) {
+  grid-column: auto;
+}
+
+.page-main.hackathons-page .event-card {
+  height: auto;
+  min-height: 0;
+}
+
+.page-main.hackathons-page .event-art {
+  height: auto;
+  aspect-ratio: 16 / 9;
+}
+
+@media (max-width: 1100px) {
+  .page-main.hackathons-page .event-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 650px) {
+  .page-main.hackathons-page {
+    width: min(calc(100% - 34px), 1200px);
+    padding-block: 38px 56px;
+  }
+
+  .page-main.hackathons-page .hackathon-controls {
+    margin-block: 28px 16px;
+  }
+
+  .page-main.hackathons-page .hackathon-filter-row {
+    gap: 12px;
+  }
+
+  .page-main.hackathons-page .filter-list {
+    width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: thin;
+  }
+
+  .page-main.hackathons-page .hackathon-theme {
+    flex: 0 0 auto;
+  }
+
+  .page-main.hackathons-page .hackathon-sort-label {
+    width: 100%;
+  }
+
+  .page-main.hackathons-page .hackathon-sort-label select {
+    width: min(100%, 220px);
+  }
+
+  .page-main.hackathons-page .event-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .page-main.hackathons-page .event-art {
+    aspect-ratio: 16 / 10;
+  }
+}
