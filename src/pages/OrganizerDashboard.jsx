@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { Arrow } from "../components/Icons";
+import OrganizerEventTools from "../components/OrganizerEventTools";
 import OrganizationStatusBanner from "../components/OrganizationStatusBanner";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
@@ -16,7 +17,7 @@ const VIEWS = [
   { value: "past", label: "Past" },
 ];
 
-function EventRow({ event, rating }) {
+function EventRow({ event, rating, toolsOpen, onToggleTools }) {
   const venue = [event.venue_name, event.city].filter(Boolean).join(", ") || "Venue to be announced";
   const dates = `${formatEventDate(event.starts_at)} – ${formatEventDate(event.ends_at)}`;
   const registered = Number(event.registered_count) || 0;
@@ -43,6 +44,14 @@ function EventRow({ event, rating }) {
         </span>
       </span>
       <span className="filter-list">
+        <button
+          className="text-link"
+          type="button"
+          aria-expanded={toolsOpen}
+          onClick={() => onToggleTools(event.id)}
+        >
+          {toolsOpen ? "Close tools" : "Attendance & results"} <Arrow diagonal />
+        </button>
         <Link className="text-link" to={`/organizer/registrations?event=${encodeURIComponent(event.id)}`}>
           Registrants <Arrow diagonal />
         </Link>
@@ -67,6 +76,8 @@ export default function OrganizerDashboard() {
   const [view, setView] = useState("current");
   const [reloadKey, setReloadKey] = useState(0);
   const [orgRating, setOrgRating] = useState(null);
+  // One hackathon's attendance/results tools open at a time.
+  const [toolsEventId, setToolsEventId] = useState("");
   const ratings = useHackathonRatings(events);
 
   useEffect(() => {
@@ -237,7 +248,17 @@ export default function OrganizerDashboard() {
         <div className="dashboard-item-list" aria-busy={loading}>
           {loading ? null : visible.length ? (
             visible.map((event) => (
-              <EventRow event={event} rating={ratings[event.id]} key={event.id} />
+              <div key={event.id}>
+                <EventRow
+                  event={event}
+                  rating={ratings[event.id]}
+                  toolsOpen={toolsEventId === event.id}
+                  onToggleTools={(id) =>
+                    setToolsEventId((current) => (current === id ? "" : id))
+                  }
+                />
+                {toolsEventId === event.id ? <OrganizerEventTools event={event} /> : null}
+              </div>
             ))
           ) : (
             <p className="dashboard-empty">
