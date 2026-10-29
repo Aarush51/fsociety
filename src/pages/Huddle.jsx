@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Fragment, useCallback, useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import Chat from "../components/Chat";
 import { Arrow } from "../components/Icons";
 import FriendCodeInput from "../components/FriendCodeInput";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
+import ReportForm from "../components/ReportForm";
+import TeammateReviews from "../components/TeammateReviews";
 import { useAuth } from "../context/AuthContext";
 import { useFriends } from "../context/FriendsContext";
 import {
@@ -12,50 +15,42 @@ import {
   friendRequestStatusMessage,
   listFriendRequests,
   listFriends,
+  logFriendError,
   removeFriend,
   respondFriendRequest,
   sendFriendRequest,
 } from "../lib/friends";
-import { formatEventDate, formatNumber, formatReputation, shortName } from "../lib/format";
+import { formatEventDate, formatNumber, shortName } from "../lib/format";
 import { fetchMyHackathons } from "../lib/personal";
 import { fetchMyTeamState } from "../lib/registrations";
-import { supabase } from "../lib/supabase";
 import { memberCount, teamCodeFrom } from "../lib/teams";
 
-// The Huddle is the social half of HackMate: friends, the teams you are on, and
-// the reviews teammates left you. The personal half (ID, points, rank, events,
-// skills, editing your profile) stays on the Dashboard and /profile.
+// The Huddle is the social half of HackMate: friends, the teams you are on, the
+// chats you share with them, and reporting a member to the admins. The personal
+// half (ID, points, rank, events, skills, editing your profile) stays on the
+// Dashboard and /profile.
 //
-// Tabs are only listed when the feature behind them exists in this codebase:
-//   Friends         new (this page) — requests and the friends list
-//   Teams and chat  teams exist; team chat does not, so no chat button
-//   Reviews         received reviews exist (get_my_received_reviews)
-//   Reports         no report feature exists, so the tab is not shown
+// TABS
+//   Friends         requests, the friends list and a 1:1 chat per friend
+//   Teams and chat  the teams you are on, each with its own team chat
+//   Reviews         teammate reviews owed after a hackathon ends
+//   Reports         the shared ReportForm (admins read the queue)
 const TABS = [
   { key: "friends", label: "Friends" },
   { key: "teams", label: "Teams and chat" },
   { key: "reviews", label: "Reviews" },
+  { key: "reports", label: "Reports" },
 ];
-
-function Stars({ rating }) {
-  const value = Math.max(0, Math.min(5, Number(rating) || 0));
-  const empty = 5 - value;
-  return (
-    <span className="review-stars" role="img" aria-label={`${value} out of 5 stars`}>
-      {"★".repeat(value)}
-      {empty ? (
-        <span className="review-stars-empty" aria-hidden="true">
-          {"★".repeat(empty)}
-        </span>
-      ) : null}
-    </span>
-  );
-}
 
 export default function Huddle() {
   const { user } = useAuth();
   const { refreshFriends } = useFriends();
-  const [tab, setTab] = useState("friends");
+  const [searchParams] = useSearchParams();
+  // Links such as /huddle?tab=reviews open the matching section directly.
+  const requestedTab = searchParams.get("tab");
+  const [tab, setTab] = useState(
+    TABS.some((item) => item.key === requestedTab) ? requestedTab : "friends",
+  );
 
   const [friends, setFriends] = useState([]);
   const [requests, setRequests] = useState(emptyFriendRequests());
@@ -69,10 +64,8 @@ export default function Huddle() {
   const [teamsStatus, setTeamsStatus] = useState({ text: "Loading your teams…", error: false });
   const [teamsLoading, setTeamsLoading] = useState(true);
 
-  const [reviews, setReviews] = useState([]);
-  const [reviewsStatus, setReviewsStatus] = useState({ text: "Loading your reviews…", error: false });
-  const [reviewsLoading, setReviewsLoading] = useState(true);
-  const [stats, setStats] = useState(null);
+  // One chat open at a time: { kind: "team" | "friend", id }.
+  const [openChat, setOpenChat] = useState(null);
 
   const loadFriends = useCallback(async () => {
     setFriendsLoading(true);
@@ -120,37 +113,17 @@ export default function Huddle() {
     }
   }, []);
 
-  const loadReviews = useCallback(async () => {
-    if (!supabase) {
-      setReviewsLoading(false);
-      setReviewsStatus({ text: "Supabase is not configured.", error: true });
-      return;
-    }
-    setReviewsLoading(true);
-    setReviewsStatus({ text: "Loading your reviews…", error: false });
-    try {
-      const [{ data, error }, profileResult] = await Promise.all([
-        supabase.rpc("get_my_received_reviews"),
-        supabase.rpc("get_my_profile"),
-      ]);
-      if (error) throw error;
-      setReviews(Array.isArray(data) ? data : []);
-      if (!profileResult.error && profileResult.data) setStats(profileResult.data);
-      setReviewsStatus({ text: "", error: false });
-    } catch (error) {
-      console.error("Could not load your reviews.", error);
-      setReviews([]);
-      setReviewsStatus({ text: error.message || "Your reviews could not be loaded.", error: true });
-    } finally {
-      setReviewsLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
     loadFriends();
     loadTeams();
-    loadReviews();
-  }, [loadFriends, loadTeams, loadReviews]);
+  }, [loadFriends, loadTeams]);
+
+  const toggleChat = (kind, id) =>
+    setOpenChat((current) =>
+      current && current.kind === kind && current.id === id ? null : { kind, id },
+    );
+
+  const chatIsOpen = (kind, id) => openChat?.kind === kind && openChat.id === id;
 
   // ---- friend actions -------------------------------------------------------
   const runFriendAction = async (id, action, successText) => {
@@ -162,6 +135,7 @@ export default function Huddle() {
       const text = typeof successText === "function" ? successText(result) : successText;
       setRequestMessage({ text: text || "", error: false });
     } catch (error) {
+      logFriendError("A friend action failed.", error);
       setRequestMessage({ text: error.message || "That could not be saved.", error: true });
     } finally {
       setBusyId("");
@@ -200,7 +174,7 @@ export default function Huddle() {
   return (
     <>
       <PageTitle title="The Huddle | HackMate" />
-      <main className="page-main wrap">
+      <main className="page-main huddle-shell">
         <PageIntro
           eyebrow="THE HUDDLE"
           title="Your people, in one place."
@@ -375,39 +349,60 @@ export default function Huddle() {
               <div className="dashboard-item-list">
                 {friends.length ? (
                   friends.map((friend) => (
-                    <article className="dashboard-data-card" key={friend.id}>
-                      <span>
-                        <strong>{friend.full_name}</strong>
-                        <small>ID {friend.friend_code}</small>
-                      </span>
-                      {removeTarget === friend.id ? (
-                        <div className="filter-list">
-                          <button
-                            className="button button-dark"
-                            type="button"
-                            disabled={busyId === friend.id}
-                            onClick={() => handleRemove(friend)}
-                          >
-                            Remove friend
-                          </button>
-                          <button
-                            className="button button-outline"
-                            type="button"
-                            onClick={() => setRemoveTarget(null)}
-                          >
-                            Keep
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          className="text-link"
-                          type="button"
-                          onClick={() => setRemoveTarget(friend.id)}
-                        >
-                          Remove
-                        </button>
-                      )}
-                    </article>
+                    <Fragment key={friend.id}>
+                      <article className="dashboard-data-card">
+                        <span>
+                          <strong>{friend.full_name}</strong>
+                          <small>ID {friend.friend_code}</small>
+                        </span>
+                        {removeTarget === friend.id ? (
+                          <div className="filter-list">
+                            <button
+                              className="button button-dark"
+                              type="button"
+                              disabled={busyId === friend.id}
+                              onClick={() => handleRemove(friend)}
+                            >
+                              Remove friend
+                            </button>
+                            <button
+                              className="button button-outline"
+                              type="button"
+                              onClick={() => setRemoveTarget(null)}
+                            >
+                              Keep
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="filter-list">
+                            <button
+                              className="button button-outline"
+                              type="button"
+                              aria-expanded={chatIsOpen("friend", friend.id)}
+                              onClick={() => toggleChat("friend", friend.id)}
+                            >
+                              {chatIsOpen("friend", friend.id) ? "Hide chat" : "Chat"}
+                            </button>
+                            <button
+                              className="text-link"
+                              type="button"
+                              onClick={() => setRemoveTarget(friend.id)}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        )}
+                      </article>
+                      {chatIsOpen("friend", friend.id) ? (
+                        <Chat
+                          friendId={friend.id}
+                          title={friend.full_name}
+                          subtitle="FRIEND CHAT"
+                          participants={[{ id: friend.id, full_name: friend.full_name }]}
+                          onClose={() => setOpenChat(null)}
+                        />
+                      ) : null}
+                    </Fragment>
                   ))
                 ) : friendsLoading ? null : (
                   <p className="dashboard-empty">
@@ -469,76 +464,49 @@ export default function Huddle() {
                     </article>
                   ))}
                 </div>
-                <p className="muted tiny">
+                <div className="filter-list">
+                  <button
+                    className="button button-outline"
+                    type="button"
+                    aria-expanded={chatIsOpen("team", team.id)}
+                    onClick={() => toggleChat("team", team.id)}
+                  >
+                    {chatIsOpen("team", team.id) ? "Hide chat" : "Chat"}
+                  </button>
                   <Link className="text-link" to={`/hackathons/${encodeURIComponent(hackathon.slug)}`}>
                     Open the hackathon <Arrow />
                   </Link>
-                </p>
+                </div>
+                {chatIsOpen("team", team.id) ? (
+                  <Chat
+                    teamId={team.id}
+                    title={`${team.name} chat`}
+                    subtitle={hackathon.title}
+                    participants={(team.members || []).map((member) => ({
+                      id: member.id,
+                      full_name: member.full_name,
+                    }))}
+                    onClose={() => setOpenChat(null)}
+                  />
+                ) : null}
               </div>
             ))}
           </>
         ) : null}
 
-        {tab === "reviews" ? (
+        {tab === "reviews" ? <TeammateReviews /> : null}
+
+        {tab === "reports" ? (
           <div className="dashboard-data-section">
             <div className="section-heading dashboard-heading">
               <div>
-                <p className="eyebrow">MY REVIEWS</p>
-                <h2>What teammates say.</h2>
+                <p className="eyebrow">REPORTS</p>
+                <h2>Report a member.</h2>
               </div>
-              {stats ? (
-                <span className="muted tiny">
-                  {formatReputation(stats.reputation)} · {formatNumber(stats.review_count)}{" "}
-                  {Number(stats.review_count) === 1 ? "review" : "reviews"}
-                </span>
-              ) : null}
+              <span className="muted tiny">Admins only</span>
             </div>
-            <p
-              className="hackathon-status"
-              role="status"
-              aria-live="polite"
-              data-error={reviewsStatus.error}
-            >
-              {reviewsStatus.text}
-              {reviewsStatus.error ? (
-                <>
-                  {" "}
-                  <button className="text-link hackathon-retry" type="button" onClick={loadReviews}>
-                    Try again
-                  </button>
-                </>
-              ) : null}
-            </p>
-            <div className="profile-history-list" aria-live="polite">
-              {reviews.length ? (
-                reviews.map((review) => (
-                  <article className="profile-review-card" key={review.id}>
-                    <div className="profile-review-top">
-                      <div>
-                        <strong>{review.reviewer_name || review.reviewer_username || "A teammate"}</strong>
-                        {review.reviewer_username ? (
-                          <span className="muted tiny"> @{review.reviewer_username}</span>
-                        ) : null}
-                        <small>
-                          {[review.project_title, review.team_name, formatEventDate(review.created_at)]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </small>
-                      </div>
-                      <Stars rating={review.rating} />
-                    </div>
-                    {review.comment ? (
-                      <p className="profile-review-comment">{review.comment}</p>
-                    ) : (
-                      <p className="profile-review-comment muted">No comment was left.</p>
-                    )}
-                  </article>
-                ))
-              ) : reviewsLoading ? null : (
-                <p className="dashboard-empty">
-                  No reviews yet. Teammates can review you after you build something together.
-                </p>
-              )}
+            <div className="friend-code-panel">
+              <ReportForm context="Reported from The Huddle" />
             </div>
           </div>
         ) : null}
