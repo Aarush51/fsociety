@@ -7,6 +7,7 @@ import StarRating from "../components/StarRating";
 import { useAdmin } from "../context/AdminContext";
 import {
   loadEventReviewsForModeration,
+  loadFlaggedUsers,
   loadHackathonsForTierReview,
   loadOrganizationsForReview,
   reviewHackathon,
@@ -22,6 +23,7 @@ const TABS = [
   { value: "rejected", label: "Rejected" },
   { value: "tiers", label: "Tiers" },
   { value: "reviews", label: "Reviews" },
+  { value: "flagged", label: "Flagged users" },
 ];
 
 const EMPTY_COPY = {
@@ -160,6 +162,51 @@ function TierCard({ event, busy, onDecide }) {
           Reject
         </button>
       </div>
+    </article>
+  );
+}
+
+// One member reported by two or more different people: the count, every reason,
+// and who filed each report (with their short context and the date).
+function FlaggedCard({ flagged }) {
+  const reporters = Array.isArray(flagged.reporters) ? flagged.reporters : [];
+  const reasons = Array.isArray(flagged.reasons) ? flagged.reasons : [];
+  const reporterCount = Number(flagged.reporter_count) || 0;
+  const reportCount = Number(flagged.report_count) || 0;
+
+  return (
+    <article className="admin-card">
+      <header className="admin-card-head">
+        <div>
+          <p className="eyebrow">
+            REPORTED BY {reporterCount} {reporterCount === 1 ? "PERSON" : "PEOPLE"} · ID{" "}
+            {flagged.friend_code || "—"}
+          </p>
+          <h2>{flagged.full_name || "A HackMate member"}</h2>
+        </div>
+        <span className="admin-badge admin-badge-rejected">
+          {reportCount} {reportCount === 1 ? "report" : "reports"}
+        </span>
+      </header>
+
+      <p className="admin-description">
+        <strong>Reasons:</strong> {reasons.length ? reasons.join(" · ") : "No reason recorded."}
+      </p>
+
+      <dl className="admin-facts">
+        {reporters.map((entry, index) => (
+          <Fact
+            key={`${entry.reporter_id}-${index}`}
+            label={`${entry.reporter_name} · ${formatEventDate(entry.created_at, {
+              dateStyle: "medium",
+              timeStyle: "short",
+            })}`}
+          >
+            {entry.reason}
+            {entry.context ? <span className="muted tiny"> — {entry.context}</span> : null}
+          </Fact>
+        ))}
+      </dl>
     </article>
   );
 }
@@ -320,6 +367,9 @@ export default function Admin() {
   const [tiersLoading, setTiersLoading] = useState(false);
   const [tiersError, setTiersError] = useState(null);
   const [tierBusyId, setTierBusyId] = useState(null);
+  const [flaggedUsers, setFlaggedUsers] = useState(null);
+  const [flaggedLoading, setFlaggedLoading] = useState(false);
+  const [flaggedError, setFlaggedError] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -380,15 +430,36 @@ export default function Admin() {
     loadTiers();
   }, [isAdmin, tab, tierEvents, loadTiers]);
 
+  const loadFlagged = useCallback(async () => {
+    setFlaggedLoading(true);
+    setFlaggedError(null);
+    try {
+      setFlaggedUsers(await loadFlaggedUsers());
+    } catch (requestError) {
+      console.error("Could not load flagged users.", requestError);
+      setFlaggedUsers([]);
+      setFlaggedError(requestError);
+    } finally {
+      setFlaggedLoading(false);
+    }
+  }, []);
+
+  // Flagged users load on first open, so the tab count stays cheap.
+  useEffect(() => {
+    if (!isAdmin || tab !== "flagged" || flaggedUsers !== null) return;
+    loadFlagged();
+  }, [isAdmin, tab, flaggedUsers, loadFlagged]);
+
   const counts = useMemo(() => {
-    const totals = { pending: 0, approved: 0, rejected: 0, reviews: 0, tiers: 0 };
+    const totals = { pending: 0, approved: 0, rejected: 0, reviews: 0, tiers: 0, flagged: 0 };
     (organizations || []).forEach((organization) => {
       if (totals[organization.status] !== undefined) totals[organization.status] += 1;
     });
     totals.reviews = (eventReviews || []).length;
     totals.tiers = (tierEvents || []).length;
+    totals.flagged = (flaggedUsers || []).length;
     return totals;
-  }, [organizations, eventReviews, tierEvents]);
+  }, [organizations, eventReviews, tierEvents, flaggedUsers]);
 
   if (adminLoading) {
     return (
@@ -458,6 +529,7 @@ export default function Admin() {
   const visible = (organizations || []).filter((organization) => organization.status === tab);
   const showingReviews = tab === "reviews";
   const showingTiers = tab === "tiers";
+  const showingFlagged = tab === "flagged";
 
   const toggleReview = async (reviewRow) => {
     setTogglingId(reviewRow.id);
@@ -481,11 +553,11 @@ export default function Admin() {
     }
   };
 
-  const statusText = showingReviews
-    ? reviewsLoading
-      ? "Loading reviews…"
-      : reviewsError
-        ? reviewsError.message || "The reviews could not be loaded."
+  const statusText = showingFlagged
+    ? flaggedLoading
+      ? "Loading flagged users…"
+      : flaggedError
+        ? flaggedError.message || "Flagged users could not be loaded."
         : message.text
     : showingTiers
       ? tiersLoading
@@ -493,11 +565,17 @@ export default function Admin() {
         : tiersError
           ? tiersError.message || "The tier claims could not be loaded."
           : message.text
-      : loading
-        ? "Loading organizations…"
-        : loadError
-          ? loadError.message || "The review queue could not be loaded."
-          : message.text;
+      : showingReviews
+        ? reviewsLoading
+          ? "Loading reviews…"
+          : reviewsError
+            ? reviewsError.message || "The reviews could not be loaded."
+            : message.text
+        : loading
+          ? "Loading organizations…"
+          : loadError
+            ? loadError.message || "The review queue could not be loaded."
+            : message.text;
 
   return (
     <>
@@ -505,25 +583,31 @@ export default function Admin() {
       <main className="page-main wrap">
         <PageIntro
           eyebrow={
-            showingReviews
-              ? "ADMIN · EVENT REVIEWS"
+            showingFlagged
+              ? "ADMIN · FLAGGED USERS"
               : showingTiers
                 ? "ADMIN · HACKATHON TIERS"
-                : "ADMIN · ORGANIZATION REVIEW"
+                : showingReviews
+                  ? "ADMIN · EVENT REVIEWS"
+                  : "ADMIN · ORGANIZATION REVIEW"
           }
           title={
-            showingReviews
-              ? "Moderate what participants write."
+            showingFlagged
+              ? "Members more than one person reported."
               : showingTiers
                 ? "Approve the tier an organizer claimed."
-                : "Approve organizers before they host."
+                : showingReviews
+                  ? "Moderate what participants write."
+                  : "Approve organizers before they host."
           }
           description={
-            showingReviews
-              ? "Hidden reviews disappear from every public page while their author and the admins can still see them."
+            showingFlagged
+              ? "A member appears here only when two or more different people reported them, so a single report never flags anyone. Every reason and reporter is listed."
               : showingTiers
                 ? "Organizers claim a tier on the host form. Only the tier you approve here is shown on the event."
-                : "Check the proof, the details and the signature. Approving unlocks hosting straight away; rejecting saves your reason for the organizer."
+                : showingReviews
+                  ? "Hidden reviews disappear from every public page while their author and the admins can still see them."
+                  : "Check the proof, the details and the signature. Approving unlocks hosting straight away; rejecting saves your reason for the organizer."
           }
         />
 
@@ -552,7 +636,20 @@ export default function Admin() {
           {statusText}
         </p>
 
-        {showingTiers ? (
+        {showingFlagged ? (
+          <div className="admin-list" aria-busy={flaggedLoading}>
+            {flaggedLoading && !flaggedUsers ? null : (flaggedUsers || []).length ? (
+              flaggedUsers.map((flaggedUser) => (
+                <FlaggedCard key={flaggedUser.user_id} flagged={flaggedUser} />
+              ))
+            ) : (
+              <p className="dashboard-empty">
+                No one has been reported by two different people yet. A member is only flagged once
+                two different reporters have filed a report.
+              </p>
+            )}
+          </div>
+        ) : showingTiers ? (
           <div className="admin-list" aria-busy={tiersLoading}>
             {tiersLoading && !tierEvents ? null : (tierEvents || []).length ? (
               tierEvents.map((event) => (

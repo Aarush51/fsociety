@@ -16,22 +16,50 @@ import { supabase } from "./supabase";
 // is reported as a clear message instead of a raw PostgREST error.
 
 export const FRIENDS_SETUP_MESSAGE =
-  "Friends isn't set up yet. Run supabase/migrations/20261028120000_add_friends.sql in Supabase, then reload this page.";
+  "Friends isn't set up yet. Run supabase/migrations/20261028120000_add_friends.sql and 20261029121000_add_huddle_messages_reports_review_hackathon.sql in Supabase, then reload this page.";
 
-function isMissingFeature(error) {
+// PostgREST/Postgres answers that mean "the database is missing an object",
+// never "you did something wrong":
+//   PGRST202  function not in the schema cache
+//   PGRST204  column not in the schema cache (writes)
+//   PGRST205  table not in the schema cache
+//   42P01     undefined table
+//   42703     undefined column  <- what a bad function body raises
+//   42883     undefined function
+// The message test catches older PostgREST builds that only send text.
+export function isFriendSchemaError(error) {
   if (!error) return false;
   const message = String(error.message || "");
   return (
     error.code === "PGRST202" ||
+    error.code === "PGRST204" ||
+    error.code === "PGRST205" ||
     error.code === "42P01" ||
+    error.code === "42703" ||
     error.code === "42883" ||
-    /could not find the function|does not exist|schema cache/i.test(message)
+    /could not find the (function|table)|column .+ does not exist|function .+ does not exist|schema cache/i.test(
+      message,
+    )
   );
+}
+
+// Keep the raw Supabase error in the console, including code/details/hint, so a
+// broken RPC body is diagnosable instead of being flattened into a toast.
+export function logFriendError(label, error) {
+  if (!error) return;
+  console.error(label, error.message, {
+    code: error.code,
+    details: error.details,
+    hint: error.hint,
+  });
 }
 
 function friendError(error, fallback) {
   if (!error) return new Error(fallback);
-  if (isMissingFeature(error)) return new Error(FRIENDS_SETUP_MESSAGE);
+  if (isFriendSchemaError(error)) {
+    logFriendError("Friend request failed because the database is missing an object.", error);
+    return new Error(FRIENDS_SETUP_MESSAGE);
+  }
   return new Error(error.message || fallback);
 }
 

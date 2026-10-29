@@ -170,6 +170,23 @@ export async function loadEventReviewsForModeration() {
   return Array.isArray(data) ? data : [];
 }
 
+// Members reported by two or more different people. The RPC is SECURITY DEFINER
+// with its own is_admin() check, so a non-admin gets an exception, not data.
+export async function loadFlaggedUsers() {
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { data, error } = await supabase.rpc("list_flagged_users");
+  if (error) {
+    if (error.code === "42501") {
+      throw new Error(
+        "Only admins can read flagged users. Run the admin SQL migration and check your row in public.admins.",
+      );
+    }
+    if (error.code === "PGRST202" || error.code === "42883") return [];
+    throw error;
+  }
+  return Array.isArray(data) ? data : [];
+}
+
 // Hide or unhide one event review. Only admins pass Row Level Security and the
 // guard trigger, so an empty result means the change did not happen.
 export async function setEventReviewHidden(reviewId, hidden) {

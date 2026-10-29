@@ -1689,15 +1689,15 @@ body {
   flex: 1 1 auto;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  align-items: stretch;
+  align-items: start;
 }
 
 .hm-shell-body.has-sidebar {
   grid-template-columns: 210px minmax(0, 1fr);
 }
 
-.hm-route-content { min-width: 0; }
-.hm-route-content > main { width: 100%; }
+.hm-route-content { min-width: 0; align-self: start; }
+.hm-route-content > main { width: 100%; height: auto; max-height: none; overflow: visible; }
 
 .hm-navbar.site-header {
   position: sticky;
@@ -2243,6 +2243,172 @@ body, .hm-app-shell {
   .hackathons-page .hackathon-sort-label select { max-width: none; }
   .hackathons-page #hackathon-results { grid-template-columns: minmax(0, 1fr); }
   .hackathons-page .event-art { min-height: 200px; aspect-ratio: 16 / 9.5; }
+}
+
+/* Home-only ambient PatternWaves visual. */
+.pattern-waves {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.pattern-waves::before {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: radial-gradient(circle at 68% 42%, rgba(124,92,255,.16), transparent 30%), radial-gradient(circle at 82% 72%, rgba(200,255,77,.10), transparent 26%);
+}
+.pattern-waves svg {
+  width: 100%;
+  height: 100%;
+  opacity: .78;
+  animation: pattern-wave-drift 18s ease-in-out infinite alternate;
+}
+@keyframes pattern-wave-drift {
+  from { transform: translate3d(-1.5%, 0, 0) scale(1.02); }
+  to { transform: translate3d(1.5%, -1%, 0) scale(1.04); }
+}
+.hero > *:not(.pattern-waves) { position: relative; }
+
+/* Internal workspace pages grow naturally with their content. */
+.idea-generator-page,
+.leaderboard-page {
+  min-height: 0;
+  height: auto;
+  max-height: none;
+  overflow: visible;
+  padding-block: 72px 96px;
+}
+.idea-generator-page .idea-layout { align-items: start; }
+.idea-generator-page .idea-builder,
+.idea-generator-page .idea-side,
+.idea-generator-page .idea-preview,
+.idea-generator-page .idea-results { height: auto; }
+.leaderboard-page .leaderboard-page-layout,
+.leaderboard-page .leaderboard-table { height: auto; }
+.leaderboard-page .rank-row { min-height: 68px; }
+
+@media (max-width: 650px) {
+  .idea-generator-page,
+  .leaderboard-page { padding-block: 44px 64px; }
+  .leaderboard-page .leaderboard-page-layout { align-items: start; }
+}
+
+/* The Huddle shares the Header's content width (1200px) with its own gutters. */
+.huddle-shell {
+  width: 100%;
+  max-width: 1200px;
+  margin-inline: auto;
+  padding-inline: 24px;
+}
+
+/* Shared chat panel (team chat and friend chat) and the report form. */
+.chat-panel {
+  display: grid;
+  gap: 13px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+.chat-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.chat-head .eyebrow { margin: 0 0 4px; }
+.chat-head h2 { margin: 0; font-size: 18px; }
+.chat-thread {
+  display: grid;
+  gap: 9px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.chat-message {
+  display: grid;
+  gap: 4px;
+  padding: 10px 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface-muted);
+}
+.chat-message-own { border-color: var(--line-strong); background: var(--chip); }
+.chat-message-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.chat-message-top strong { font-size: 12px; }
+.chat-message-top small { color: var(--muted); font-size: 11px; }
+.chat-message p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.chat-form { display: flex; flex-wrap: wrap; gap: 8px; }
+.chat-form input {
+  flex: 1 1 220px;
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--background-alt);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 13px;
+}
+.chat-form input::placeholder { color: var(--muted); }
+.chat-form input:focus {
+  border-color: var(--primary);
+  outline: 2px solid rgba(124, 92, 255, .22);
+}
+.chat-empty { margin: 0; }
+
+.report-form-block { display: grid; gap: 9px; }
+.report-form-block .eyebrow { margin: 0; }
+.report-form-block > p { margin: 0; max-width: 560px; }
+.report-form { display: grid; gap: 8px; margin-top: 4px; }
+.report-form > label { margin-top: 4px; font-size: 10px; font-weight: 700; }
+.report-form textarea {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--background-alt);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.55;
+  resize: vertical;
+}
+.report-form textarea::placeholder { color: var(--muted); }
+.report-form textarea:focus {
+  border-color: var(--primary);
+  outline: 2px solid rgba(124, 92, 255, .22);
+}
+.report-target {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface-muted);
+}
+.report-target strong { font-size: 13px; }
+
+@media (max-width: 650px) {
+  .chat-thread { max-height: 260px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
