@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import Reviews from "../features/teams/Reviews";
+import { useAuth } from "../context/AuthContext";
 import { Arrow } from "../components/Icons";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
@@ -7,6 +9,7 @@ import { supabase, supabaseSetupMessage } from "../lib/supabase";
 import { teamCodeFrom } from "../lib/teams";
 
 export default function Teams() {
+  const { user } = useAuth();
   const [teams, setTeams] = useState([]);
   const [status, setStatus] = useState("Loading your teams…");
   const [statusError, setStatusError] = useState(false);
@@ -109,6 +112,7 @@ export default function Teams() {
                     Open hackathon <Arrow />
                   </Link>
                 </div>
+                <Reviews hackathonSlug={team.hackathon_slug} userId={user?.id} />
               </article>
             );
           })}
