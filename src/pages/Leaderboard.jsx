@@ -48,7 +48,7 @@ export default function Leaderboard() {
   return (
     <>
       <PageTitle title="Leaderboard | HackMate" />
-      <main className="page-main wrap">
+      <main className="page-main wrap leaderboard-page">
         <PageIntro
           eyebrow="COMMUNITY SPOTLIGHT"
           title="Celebrate the doers."
