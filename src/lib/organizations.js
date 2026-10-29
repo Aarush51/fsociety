@@ -230,7 +230,7 @@ export async function createOrganization(ownerId, values) {
 // ---------------------------------------------------------------------------
 
 export const ORGANIZER_HACKATHON_FIELDS =
-  "id, slug, title, venue_name, city, address, maps_url, capacity, price, starts_at, ends_at, status, approval_status, tier, claimed_tier, review_note";
+  "id, slug, title, venue_name, city, address, maps_url, capacity, price, starts_at, ends_at, status";
 
 // A hackathon is current until its end date passes.
 export function isCurrentEvent(event, now = Date.now()) {
@@ -314,9 +314,8 @@ export function validateHackathon(values) {
 
   if (!values.description.trim()) errors.description = "Describe what people will build.";
   if (!values.venue_name.trim()) errors.venue_name = "Add the venue name.";
+  if (!values.address.trim()) errors.address = "Add the full address so people can find the venue.";
   if (!values.city.trim()) errors.city = "Add the city.";
-  // The full address moved into "More details (optional)": the column is
-  // nullable, so it is no longer required to publish.
 
   if (values.maps_url.trim() && !isHttpUrl(withHttps(values.maps_url))) {
     errors.maps_url = "Paste a Google Maps link that starts with http:// or https://.";
@@ -348,33 +347,6 @@ export function validateHackathon(values) {
     errors.ends_at = "The end time has to be after the start time.";
   }
 
-  // Tier claim: the reviewer needs a tier and a reason, and the reason is capped
-  // at what the hackathons.claimed_tier_reason check constraint allows.
-  if (!["1", "2", "3"].includes(String(values.claimed_tier || ""))) {
-    errors.claimed_tier = "Pick the tier that fits your hackathon.";
-  }
-  const tierReason = String(values.claimed_tier_reason || "").trim();
-  if (!tierReason) {
-    errors.claimed_tier_reason = "Tell the reviewer why you picked this tier.";
-  } else if (tierReason.length > 600) {
-    errors.claimed_tier_reason = "Keep the reason under 600 characters.";
-  }
-
-  // Expected participants and prize pool are optional; only validate a value
-  // that was actually typed.
-  if (String(values.expected_participants || "").trim()) {
-    const expected = Number(values.expected_participants);
-    if (!Number.isInteger(expected) || expected < 1) {
-      errors.expected_participants = "Enter a whole number of people, or leave it blank.";
-    }
-  }
-  if (String(values.prize_pool || "").trim()) {
-    const pool = Number(values.prize_pool);
-    if (Number.isNaN(pool) || pool < 0) {
-      errors.prize_pool = "Enter the prize pool in rupees, or leave it blank for none.";
-    }
-  }
-
   return { valid: Object.keys(errors).length === 0, errors };
 }
 
@@ -386,10 +358,6 @@ export async function createHackathon({ organization, user, values }) {
   const prizeDetails = values.prize_details.trim();
   const teamSizeMax = Math.min(Math.max(Number(values.team_size_max) || 4, 2), 6);
   const price = values.price.trim() === "" ? 0 : Number(values.price);
-  const prizePool = String(values.prize_pool || "").trim() === "" ? 0 : Number(values.prize_pool);
-  const expectedParticipants = String(values.expected_participants || "").trim()
-    ? Number(values.expected_participants)
-    : null;
   const payload = {
       slug: slugFromTitle(values.title),
       title: values.title.trim(),
@@ -398,13 +366,12 @@ export async function createHackathon({ organization, user, values }) {
       organizer: organization.org_name,
       location: `${venue}, ${city}`,
       // The public card shows a short prize pool; the full text lives in prize_details.
-      prize:
-        prizeDetails.slice(0, 190) ||
-        (prizePool > 0 ? `\u20b9${prizePool.toLocaleString("en-IN")} prize pool` : null),
+      prize: prizeDetails ? prizeDetails.slice(0, 190) : null,
       registration_deadline: new Date(values.starts_at).toISOString(),
       starts_at: new Date(values.starts_at).toISOString(),
       ends_at: new Date(values.ends_at).toISOString(),
       status: "upcoming",
+      approval_status: "approved",
       created_by: user.id,
       organization_id: organization.id,
       venue_name: venue,
@@ -418,55 +385,36 @@ export async function createHackathon({ organization, user, values }) {
       theme_tags: themes,
       rules: values.rules.trim() || null,
       prize_details: prizeDetails || null,
-      // The organizer's claim. approval_status, tier and the review fields are
-      // deliberately not sent: the database trigger owns them, and it forces a
-      // non-admin insert to 'pending' with no tier.
-      claimed_tier: Number(values.claimed_tier),
-      claimed_tier_reason: values.claimed_tier_reason.trim(),
-      expected_participants: expectedParticipants,
-      prize_pool: prizePool,
   };
 
-  // One insert, no silent retry. If a column from the tier migration is missing,
-  // the real Postgres error reaches the screen instead of a second attempt
-  // hiding it.
-  const { data, error } = await supabase
-    .from("hackathons")
-    .insert(payload)
-    .select("id, slug")
-    .single();
+  // team_size_max arrives with the team formation migration. If this project
+  // has not applied it yet, retry without the column so hosting still works;
+  // the column defaults to 4 once the migration runs.
+  let result = await supabase.from("hackathons").insert(payload).select("id, slug").single();
+  if (result.error && result.error.code === "42703" && /team_size_max/.test(result.error.message || "")) {
+    const { team_size_max: _missingColumn, ...legacyPayload } = payload;
+    result = await supabase.from("hackathons").insert(legacyPayload).select("id, slug").single();
+  }
 
+  const { data, error } = result;
   if (error) {
-    // Always keep what Postgres actually said on screen. A friendly sentence may
-    // come first, but the raw message, detail, hint and code stay, so a missing
-    // column or a policy failure is obvious instead of a generic "try again".
-    const detail = [error.message, error.details, error.hint].filter(Boolean).join(" ");
-    const suffix = ` Database said: ${detail || "no further detail"}${
-      error.code ? ` (code ${error.code})` : ""
-    }`;
-
-    if (error.code === "42501") {
-      throw new Error(
-        `Only approved organizations can host a hackathon. Check your organization status on the dashboard.${suffix}`,
-      );
-    }
-    if (error.code === "23505") {
-      throw new Error(`A hackathon with a very similar title already exists. Try another title.${suffix}`);
-    }
-    if (error.code === "23514") {
-      throw new Error(
-        `One of the details was rejected. Check the dates, capacity and links, then try again.${suffix}`,
-      );
-    }
-    if (error.code === "23502") {
-      throw new Error(`A required field was missing.${suffix}`);
-    }
-    if (error.code === "42703") {
-      throw new Error(
-        `This form needs a database column that does not exist yet. Apply the latest Supabase migration, then try again.${suffix}`,
-      );
-    }
-    throw new Error(detail || "Your hackathon could not be saved.");
+        if (error.code === "42501") {
+          throw new Error(
+            "Only approved organizations can host a hackathon. Check your organization status on the dashboard.",
+          );
+        }
+        if (error.code === "23505") {
+          throw new Error("A hackathon with a very similar title already exists. Try another title.");
+        }
+        if (error.code === "23514") {
+          throw new Error(
+            `One of the details was rejected: ${error.message}. Check the dates, capacity and links, then try again.`,
+          );
+        }
+        if (error.code === "23502") {
+          throw new Error(`A required field was missing: ${error.message}.`);
+        }
+        throw new Error(error.message || "Your hackathon could not be saved. Please try again.");
   }
   return data;
 }
