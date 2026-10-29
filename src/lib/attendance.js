@@ -135,13 +135,34 @@ export async function saveHackathonResults(hackathonId, entries) {
   return data || null;
 }
 
-export async function publishHackathonResults(hackathonId, published) {
+// Publishing awards points: publish_results marks the result sheet public and
+// rebuilds that hackathon's points_ledger rows in one statement, so pressing
+// Publish twice can never duplicate points. Unpublishing removes them again.
+export const POINTS_UNAVAILABLE =
+  "Publishing points is not available yet: run supabase/migrations/20261029180000_add_points_ledger_and_publish_results.sql in Supabase first.";
+
+function pointsError(error, fallback) {
+  if (error && (error.code === "42883" || error.code === "PGRST202")) {
+    return new Error(POINTS_UNAVAILABLE);
+  }
+  return attendanceError(error, fallback);
+}
+
+export async function publishResults(hackathonId) {
   if (!supabase) throw new Error("Supabase is not configured.");
-  const { data, error } = await supabase.rpc("publish_hackathon_results", {
+  const { data, error } = await supabase.rpc("publish_results", {
     p_hackathon_id: hackathonId,
-    p_published: Boolean(published),
   });
-  if (error) throw attendanceError(error, "The results could not be published.");
+  if (error) throw pointsError(error, "The results could not be published.");
+  return data || null;
+}
+
+export async function unpublishResults(hackathonId) {
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { data, error } = await supabase.rpc("unpublish_results", {
+    p_hackathon_id: hackathonId,
+  });
+  if (error) throw pointsError(error, "The results could not be unpublished.");
   return data || null;
 }
 

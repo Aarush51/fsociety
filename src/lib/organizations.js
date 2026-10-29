@@ -76,8 +76,27 @@ export const ORG_EMAIL_MESSAGE = "Organizations need a company or college email.
 export const ORG_EMAIL_HINT =
   "Use a company or college address — gmail.com, yahoo.com, outlook.com and other free providers are not accepted.";
 
+// Country domains slip past a plain list: yahoo.co.in, hotmail.co.uk, live.in.
+// These patterns catch a free provider followed by a ccTLD (and an optional
+// second level), so "live.acme.com" still counts as a company address.
+const FREE_EMAIL_PATTERNS = [
+  /^(yahoo|ymail|rocketmail)\.[a-z]{2,3}(\.[a-z]{2,3})?$/,
+  /^(hotmail|outlook|live|msn)\.[a-z]{2,3}(\.[a-z]{2,3})?$/,
+  /^(gmail|googlemail)\.[a-z]{2,3}(\.[a-z]{2,3})?$/,
+  /^(proton|protonmail|pm)\.[a-z]{2,3}(\.[a-z]{2,3})?$/,
+  /^(rediff|zoho|gmx|web)\.[a-z]{2,3}(\.[a-z]{2,3})?$/,
+];
+
+// "mail.yahoo.co.in" and "www.gmail.com" are the same provider as the bare domain.
+function baseDomain(domain) {
+  return domain.replace(/^(www|mail|m|email|smtp)\./, "");
+}
+
 export function isFreeEmailDomain(email) {
-  return FREE_EMAIL_DOMAINS.includes(emailDomain(email));
+  const domain = baseDomain(emailDomain(email));
+  if (!domain) return false;
+  if (FREE_EMAIL_DOMAINS.includes(domain)) return true;
+  return FREE_EMAIL_PATTERNS.some((pattern) => pattern.test(domain));
 }
 
 export const ORGANIZATION_FIELDS =

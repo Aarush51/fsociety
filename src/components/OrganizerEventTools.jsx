@@ -8,9 +8,10 @@ import {
   loadHackathonResults,
   loadHackathonRoster,
   PLACES,
-  publishHackathonResults,
+  publishResults,
   saveHackathonAttendance,
   saveHackathonResults,
+  unpublishResults as unpublishResultsRequest,
   validateResults,
 } from "../lib/attendance";
 
@@ -135,12 +136,17 @@ export default function OrganizerEventTools({ event }) {
     try {
       await saveHackathonResults(event.id, entries);
       if (alsoPublish) {
-        await publishHackathonResults(event.id, true);
+        // publish_results also awards the points for these places and mentions.
+        const summary = await publishResults(event.id);
         setPublished(true);
+        const awarded = Number(summary?.awarded) || 0;
+        const total = Number(summary?.total_points) || 0;
         setMessage({
           text: `Published ${check.places.length} ${
             check.places.length === 1 ? "place" : "places"
-          } and ${check.mentions.length} honourable mentions for ${event.title}.`,
+          } and ${check.mentions.length} honourable mentions for ${event.title}. ${awarded} ${
+            awarded === 1 ? "participant" : "participants"
+          } awarded ${total} ${total === 1 ? "point" : "points"}.`,
           error: false,
         });
       } else {
@@ -157,9 +163,13 @@ export default function OrganizerEventTools({ event }) {
     setBusy("unpublish");
     setMessage({ text: "", error: false });
     try {
-      await publishHackathonResults(event.id, false);
+      const summary = await unpublishResultsRequest(event.id);
       setPublished(false);
-      setMessage({ text: `Results for ${event.title} are no longer public.`, error: false });
+      const removed = Number(summary?.removed) || 0;
+      setMessage({
+        text: `Results for ${event.title} are no longer public.${removed ? ` ${removed} points removed.` : ""}`,
+        error: false,
+      });
     } catch (requestError) {
       setMessage({ text: requestError.message || "The results could not be unpublished.", error: true });
     } finally {

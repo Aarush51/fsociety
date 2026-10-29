@@ -5,7 +5,7 @@ import { useOrganization } from "../context/OrganizationContext";
 import PageTitle from "../components/PageTitle";
 import { landingPath } from "../lib/access";
 import { safeRedirectTarget } from "../lib/format";
-import { fetchMyOrganization } from "../lib/organizations";
+import { ORG_EMAIL_MESSAGE, fetchMyOrganization, isAllowedOrgEmail } from "../lib/organizations";
 
 const AUDIENCES = [
   { value: "participant", label: "Participant" },
@@ -17,8 +17,13 @@ const AUDIENCES = [
 const NO_ORGANIZATION_NOTICE =
   "You are signed in as an organization, but this account has no organization yet. Register one below to start hosting hackathons.";
 
+// An email that owns an organization belongs on the Organization tab, and a
+// free mailbox can never hold an organizer account.
+const ORGANIZER_ACCOUNT_NOTICE =
+  "This email is registered as an organizer. Log in with the Organization tab instead.";
+
 export default function Login() {
-  const { session, loading, signIn, mode, chooseMode, configError } = useAuth();
+  const { session, loading, signIn, signOut, mode, chooseMode, configError } = useAuth();
   const { organization, loading: organizationLoading } = useOrganization();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -53,7 +58,39 @@ export default function Login() {
     setMessage({ text: "", error: false });
     try {
       const data = await signIn(email.trim(), password);
+
+      // Organizations may only sign in with a company or college address, so a
+      // blocked mailbox is signed straight back out.
+      if (wantsOrganization && !isAllowedOrgEmail(data?.user?.email)) {
+        try {
+          await signOut();
+        } catch (signOutError) {
+          console.error("Could not sign out after a blocked organization email.", signOutError);
+        }
+        chooseMode("organization");
+        setResolvingOrganization(false);
+        setMessage({ text: ORG_EMAIL_MESSAGE, error: true });
+        return;
+      }
+
       if (!wantsOrganization) {
+        // The reverse rule: an account that owns an organization cannot use the
+        // participant login. A failed lookup must never block a normal sign-in.
+        let ownsOrganization = null;
+        try {
+          ownsOrganization = await fetchMyOrganization(data?.user?.id);
+        } catch (lookupError) {
+          console.error("Could not check for an organization on this account.", lookupError);
+        }
+        if (ownsOrganization) {
+          try {
+            await signOut();
+          } catch (signOutError) {
+            console.error("Could not sign out after a blocked participant login.", signOutError);
+          }
+          setMessage({ text: ORGANIZER_ACCOUNT_NOTICE, error: true });
+          return;
+        }
         navigate(safeRedirectTarget(redirect) || "/");
         return;
       }
