@@ -1,23 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-<<<<<<< HEAD
-import FriendCodeInput from "../components/FriendCodeInput";
-import { userIdForUser } from "../lib/userIds";
-import {
-  ReviewSummary,
-  SkillsFields,
-  cleanHobbies,
-  cleanInterests,
-  cleanSkillLevels,
-} from "../features/teams";
-import { Arrow, CopyIcon } from "../components/Icons";
-=======
 import DraftRestoredNote from "../components/DraftRestoredNote";
 import useFormDraft from "../hooks/useFormDraft";
 import { SkillsFields, cleanHobbies, cleanInterests, cleanSkillLevels } from "../features/teams";
 import { Arrow } from "../components/Icons";
->>>>>>> dba09642439d0269aa9a22867da2b2752b4f506c
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
 import { formatEventDate, formatNumber, initialsFromName } from "../lib/format";
@@ -119,39 +106,6 @@ export default function Profile() {
     };
   }, []);
 
-<<<<<<< HEAD
-  // Existing project reviews are read through their established RPC. Keep them
-  // separate from team-review averages and scores.
-  useEffect(() => {
-    if (!supabase) return undefined;
-
-    let active = true;
-    setReviewsLoading(true);
-    setReviewsError(null);
-    supabase
-      .rpc("get_my_received_reviews")
-      .then(({ data, error: requestError }) => {
-        if (!active) return;
-        if (requestError) throw requestError;
-        setReviews(Array.isArray(data) ? data : []);
-      })
-      .catch((requestError) => {
-        if (!active) return;
-        console.error("Could not load received reviews.", requestError);
-        setReviews([]);
-        setReviewsError(requestError);
-      })
-      .finally(() => {
-        if (active) setReviewsLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [historyKey]);
-
-=======
->>>>>>> dba09642439d0269aa9a22867da2b2752b4f506c
   // The caller's own coin ledger, newest first. The RPC caps the page at 200 rows.
   useEffect(() => {
     if (!supabase) return undefined;
@@ -499,109 +453,7 @@ export default function Profile() {
             </section>
           </div>
         </div>
-<<<<<<< HEAD
-        <section className="dashboard-data-section" aria-label="Add a friend with a friend ID">
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">ADD A FRIEND</p>
-              <h2>Look someone up by ID.</h2>
-            </div>
-          </div>
-          <div className="friend-code-panel">
-            <p className="muted small friend-code-intro">
-              Type a six-digit HackMate ID to see who it belongs to before you add them.
-            </p>
-            <FriendCodeInput
-              id="profile-friend-lookup"
-              label="Their ID"
-              confirmLabel="Add friend"
-              addedIds={friends.map((friend) => friend.id)}
-              onConfirm={handleFriendFound}
-            />
-            <div className="friend-code-added" aria-live="polite">
-              {friends.length ? (
-                <div className="dashboard-item-list">
-                  {friends.map((friend) => (
-                    <article className="dashboard-data-card" key={friend.id}>
-                      <span>
-                        <strong>{shortName(friend.full_name)}</strong>
-                        <small>{friend.friend_code} · added this visit</small>
-                      </span>
-                    </article>
-                  ))}
-                </div>
-              ) : null}
-              <p className="muted tiny friend-code-note">
-                Friend requests aren’t saved yet — share your own ID so they can add you back.
-              </p>
-            </div>
-          </div>
-        </section>
-        <ReviewSummary userId={user?.id} />
-        <div className="profile-history-layout">
-          <section className="dashboard-data-section" aria-label="Reviews you received">
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">RECEIVED REVIEWS</p>
-                <h2>What teammates say.</h2>
-              </div>
-              {reviews.length ? (
-                <span className="muted tiny">
-                  {formatNumber(reviews.length)} {reviews.length === 1 ? "review" : "reviews"}
-                </span>
-              ) : null}
-            </div>
-            <div id="profile-reviews" className="profile-history-list" aria-live="polite">
-              {reviewsLoading ? (
-                <p className="dashboard-empty">Loading your reviews…</p>
-              ) : reviewsError ? (
-                <p className="dashboard-empty">
-                  Your reviews couldn’t be loaded.{" "}
-                  <button
-                    className="text-link"
-                    type="button"
-                    onClick={() => setHistoryKey((key) => key + 1)}
-                  >
-                    Try again
-                  </button>
-                </p>
-              ) : reviews.length ? (
-                reviews.map((review) => (
-                  <article className="profile-review-card" key={review.id}>
-                    <div className="profile-review-top">
-                      <div>
-                        <strong>
-                          {review.reviewer_name || review.reviewer_username || "A teammate"}
-                        </strong>
-                        {review.reviewer_username ? (
-                          <span className="muted tiny"> @{review.reviewer_username}</span>
-                        ) : null}
-                        <small>
-                          {[review.project_title, review.team_name, formatEventDate(review.created_at)]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </small>
-                      </div>
-                      <Stars rating={review.rating} />
-                    </div>
-                    {review.comment ? (
-                      <p className="profile-review-comment">{review.comment}</p>
-                    ) : (
-                      <p className="profile-review-comment muted">No comment was left.</p>
-                    )}
-                  </article>
-                ))
-              ) : (
-                <p className="dashboard-empty">
-                  No reviews yet. Teammates can review you after you build something together.
-                </p>
-              )}
-            </div>
-          </section>
-          <section className="dashboard-data-section" aria-label="Coin history">
-=======
         <section className="dashboard-data-section" aria-label="Coin history">
->>>>>>> dba09642439d0269aa9a22867da2b2752b4f506c
             <div className="section-heading">
               <div>
                 <p className="eyebrow">COIN HISTORY</p>
