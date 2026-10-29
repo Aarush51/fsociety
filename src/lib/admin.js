@@ -39,6 +39,121 @@ export async function loadOrganizationsForReview() {
   return data || [];
 }
 
+// ---------------------------------------------------------------------------
+// Hackathon review
+// ---------------------------------------------------------------------------
+
+// Every column the review view shows, including the optional ones the organizer
+// filled in under "More details". Admins can read all of them.
+export const HACKATHON_REVIEW_FIELDS = [
+  "id",
+  "slug",
+  "title",
+  "description",
+  "category",
+  "organizer",
+  "location",
+  "prize",
+  "registration_deadline",
+  "starts_at",
+  "ends_at",
+  "status",
+  "created_by",
+  "created_at",
+  "updated_at",
+  "approval_status",
+  "organization_id",
+  "venue_name",
+  "address",
+  "city",
+  "maps_url",
+  "capacity",
+  "price",
+  "banner_url",
+  "theme_tags",
+  "rules",
+  "prize_details",
+  "team_size_max",
+  "claimed_tier",
+  "claimed_tier_reason",
+  "expected_participants",
+  "prize_pool",
+  "tier",
+  "tier_note",
+  "reviewed_by",
+  "reviewed_at",
+  "review_note",
+].join(", ");
+
+// Every hackathon, newest first. RLS returns the whole table for an admin, so the
+// page can split it into Pending / Live / Rejected and group events by
+// organization for the "earlier hackathons" line in the review view.
+export async function loadHackathonsForReview() {
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { data, error } = await supabase
+    .from("hackathons")
+    .select(HACKATHON_REVIEW_FIELDS)
+    .order("created_at", { ascending: false });
+  if (error) {
+    if (error.code === "42501") {
+      throw new Error(
+        "Only admins can read every hackathon. Check that the admin SQL migration has been run in Supabase.",
+      );
+    }
+    if (error.code === "42703") {
+      throw new Error(
+        `The hackathon review columns are missing: ${error.message}. Apply the tier migration in Supabase.`,
+      );
+    }
+    throw error;
+  }
+  return data || [];
+}
+
+// The three tiers with their examples and multipliers. Readable by anyone (the
+// host form uses the same wording), so an admin page never needs a special case.
+export async function loadTierSettings() {
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { data, error } = await supabase
+    .from("tier_settings")
+    .select("tier, label, description, examples, criteria, points_multiplier")
+    .order("tier", { ascending: true });
+  if (error) {
+    if (error.code === "42P01" || error.code === "42501") {
+      throw new Error(
+        "The tier settings table is missing. Apply the tier migration in Supabase.",
+      );
+    }
+    throw error;
+  }
+  return data || [];
+}
+
+// The only way to approve or reject an event. Every rule lives in the database
+// function, so the messages below are the server's own words: a missing tier, a
+// lower tier than the claim without a note, or a rejection without a reason.
+export async function reviewHackathon({ hackathonId, decision, tier = null, note = null }) {
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { data, error } = await supabase.rpc("review_hackathon", {
+    p_hackathon_id: hackathonId,
+    p_decision: decision,
+    p_tier: tier === null || tier === undefined || tier === "" ? null : Number(tier),
+    p_note: note === null || note === undefined ? null : note.trim(),
+  });
+  if (error) {
+    if (error.code === "42501") {
+      throw new Error("Only admins can review hackathons.");
+    }
+    if (error.code === "42883" || error.code === "PGRST202") {
+      throw new Error(
+        "The review_hackathon function is missing. Apply the tier migration in Supabase.",
+      );
+    }
+    throw new Error(error.message || "The review could not be saved. Please try again.");
+  }
+  return data;
+}
+
 // Approve or reject one organization. Rejecting requires a reason, which is
 // stored in review_note; approving clears it again.
 export async function reviewOrganization(id, { status, reviewNote = null }) {
