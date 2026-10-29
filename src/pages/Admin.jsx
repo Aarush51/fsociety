@@ -1,10 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { Arrow } from "../components/Icons";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
+import StarRating from "../components/StarRating";
 import { useAdmin } from "../context/AdminContext";
-import { loadOrganizationsForReview, reviewOrganization } from "../lib/admin";
+import {
+  loadEventReviewsForModeration,
+  loadOrganizationsForReview,
+  reviewOrganization,
+  setEventReviewHidden,
+} from "../lib/admin";
 import { formatEventDate } from "../lib/format";
 import { organizationTypeLabel } from "../lib/organizations";
 
@@ -12,6 +18,7 @@ const TABS = [
   { value: "pending", label: "Pending" },
   { value: "approved", label: "Approved" },
   { value: "rejected", label: "Rejected" },
+  { value: "reviews", label: "Reviews" },
 ];
 
 const EMPTY_COPY = {
@@ -26,6 +33,46 @@ function Fact({ label, children }) {
       <dt>{label}</dt>
       <dd>{children}</dd>
     </div>
+  );
+}
+
+function ReviewCard({ review, busy, onToggle }) {
+  return (
+    <article className="admin-card">
+      <header className="admin-card-head">
+        <div>
+          <p className="eyebrow">{review.hackathon_title}</p>
+          <h2>{review.reviewer_first_name}</h2>
+        </div>
+        <span className={`admin-badge ${review.hidden ? "admin-badge-rejected" : "admin-badge-approved"}`}>
+          {review.hidden ? "hidden" : "visible"}
+        </span>
+      </header>
+
+      <div className="event-rating">
+        <StarRating value={review.rating} />
+        <span className="muted tiny">
+          {formatEventDate(review.created_at)}
+          {review.updated_at && review.updated_at !== review.created_at
+            ? ` · edited ${formatEventDate(review.updated_at)}`
+            : ""}
+        </span>
+      </div>
+
+      <p className="admin-description">{review.comment || "No comment left."}</p>
+
+      <div className="admin-actions">
+        <button className="button button-dark" type="button" disabled={busy} onClick={() => onToggle(review)}>
+          {busy ? "Saving…" : review.hidden ? "Unhide" : "Hide"}
+        </button>
+        <Link
+          className="text-link"
+          to={`/hackathons/${encodeURIComponent(review.hackathon_slug)}#reviews`}
+        >
+          Open reviews <Arrow diagonal />
+        </Link>
+      </div>
+    </article>
   );
 }
 
@@ -177,6 +224,10 @@ export default function Admin() {
   const [tab, setTab] = useState("pending");
   const [busyId, setBusyId] = useState(null);
   const [message, setMessage] = useState({ text: "", error: false });
+  const [eventReviews, setEventReviews] = useState(null);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [reviewsError, setReviewsError] = useState(null);
+  const [togglingId, setTogglingId] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -197,13 +248,34 @@ export default function Admin() {
     load();
   }, [isAdmin, load]);
 
+  const loadReviews = useCallback(async () => {
+    setReviewsLoading(true);
+    setReviewsError(null);
+    try {
+      setEventReviews(await loadEventReviewsForModeration());
+    } catch (requestError) {
+      console.error("Could not load event reviews for moderation.", requestError);
+      setEventReviews([]);
+      setReviewsError(requestError);
+    } finally {
+      setReviewsLoading(false);
+    }
+  }, []);
+
+  // The Reviews tab loads on first open and after every hide/unhide.
+  useEffect(() => {
+    if (!isAdmin || tab !== "reviews" || eventReviews !== null) return;
+    loadReviews();
+  }, [isAdmin, tab, eventReviews, loadReviews]);
+
   const counts = useMemo(() => {
-    const totals = { pending: 0, approved: 0, rejected: 0 };
+    const totals = { pending: 0, approved: 0, rejected: 0, reviews: 0 };
     (organizations || []).forEach((organization) => {
       if (totals[organization.status] !== undefined) totals[organization.status] += 1;
     });
+    totals.reviews = (eventReviews || []).length;
     return totals;
-  }, [organizations]);
+  }, [organizations, eventReviews]);
 
   if (adminLoading) {
     return (
@@ -246,19 +318,58 @@ export default function Admin() {
   };
 
   const visible = (organizations || []).filter((organization) => organization.status === tab);
+  const showingReviews = tab === "reviews";
+
+  const toggleReview = async (reviewRow) => {
+    setTogglingId(reviewRow.id);
+    setMessage({ text: "", error: false });
+    try {
+      await setEventReviewHidden(reviewRow.id, !reviewRow.hidden);
+      await loadReviews();
+      setMessage({
+        text: reviewRow.hidden
+          ? `${reviewRow.reviewer_first_name}'s review is visible again.`
+          : `${reviewRow.reviewer_first_name}'s review is hidden from the public page.`,
+        error: false,
+      });
+    } catch (requestError) {
+      setMessage({
+        text: requestError.message || "The change could not be saved. Please try again.",
+        error: true,
+      });
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
+  const statusText = showingReviews
+    ? reviewsLoading
+      ? "Loading reviews…"
+      : reviewsError
+        ? reviewsError.message || "The reviews could not be loaded."
+        : message.text
+    : loading
+      ? "Loading organizations…"
+      : loadError
+        ? loadError.message || "The review queue could not be loaded."
+        : message.text;
 
   return (
     <>
       <PageTitle title="Admin · Organization review | HackMate" />
       <main className="page-main wrap">
         <PageIntro
-          eyebrow="ADMIN · ORGANIZATION REVIEW"
-          title="Approve organizers before they host."
-          description="Check the proof, the details and the signature. Approving unlocks hosting straight away; rejecting saves your reason for the organizer."
+          eyebrow={showingReviews ? "ADMIN · EVENT REVIEWS" : "ADMIN · ORGANIZATION REVIEW"}
+          title={showingReviews ? "Moderate what participants write." : "Approve organizers before they host."}
+          description={
+            showingReviews
+              ? "Hidden reviews disappear from every public page while their author and the admins can still see them."
+              : "Check the proof, the details and the signature. Approving unlocks hosting straight away; rejecting saves your reason for the organizer."
+          }
         />
 
         <div className="organizer-toolbar admin-toolbar">
-          <div className="filter-list" aria-label="Filter organizations by status">
+          <div className="filter-list" aria-label="Filter the admin queue">
             {TABS.map((option) => (
               <button
                 className={`${tab === option.value ? "filter-active" : "skill"} hackathon-theme`}
@@ -279,14 +390,26 @@ export default function Admin() {
           aria-live="polite"
           data-error={message.error}
         >
-          {loading
-            ? "Loading organizations…"
-            : loadError
-              ? loadError.message || "The review queue could not be loaded."
-              : message.text}
+          {statusText}
         </p>
 
-        <div className="admin-list" aria-busy={loading}>
+        {showingReviews ? (
+          <div className="admin-list" aria-busy={reviewsLoading}>
+            {reviewsLoading && !eventReviews ? null : (eventReviews || []).length ? (
+              eventReviews.map((reviewRow) => (
+                <ReviewCard
+                  review={reviewRow}
+                  busy={togglingId === reviewRow.id}
+                  onToggle={toggleReview}
+                  key={reviewRow.id}
+                />
+              ))
+            ) : (
+              <p className="dashboard-empty">No event reviews yet.</p>
+            )}
+          </div>
+        ) : (
+          <div className="admin-list" aria-busy={loading}>
           {loading && !organizations ? null : visible.length ? (
             visible.map((organization) => (
               <OrganizationCard
@@ -300,7 +423,8 @@ export default function Admin() {
           ) : (
             <p className="dashboard-empty">{EMPTY_COPY[tab]}</p>
           )}
-        </div>
+          </div>
+        )}
       </main>
     </>
   );

@@ -5,6 +5,7 @@ import { Arrow } from "../components/Icons";
 import LeaderboardRows from "../components/LeaderboardRows";
 import PageTitle from "../components/PageTitle";
 import SectionHeading from "../components/SectionHeading";
+import useHackathonRatings from "../hooks/useHackathonRatings";
 import { events, leaderboard } from "../lib/demoData";
 import { hackathonCardData } from "../lib/format";
 import { supabase } from "../lib/supabase";
@@ -25,6 +26,7 @@ function builderInitials(name) {
 
 export default function Home() {
   const [homeEvents, setHomeEvents] = useState(events);
+  const ratings = useHackathonRatings(homeEvents);
   const [eventStatus, setEventStatus] = useState("Loading hackathons…");
   const [eventsBusy, setEventsBusy] = useState(true);
   const [leaderboardPeople, setLeaderboardPeople] = useState(leaderboard);
@@ -228,7 +230,7 @@ export default function Home() {
             </p>
             <div className="event-grid" data-home-events="" aria-busy={eventsBusy}>
               {homeEvents.map((event) => (
-                <EventCard event={event} key={event.id} />
+                <EventCard event={{ ...event, rating: ratings[event.uuid] }} key={event.id} />
               ))}
             </div>
           </div>

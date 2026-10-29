@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useAdmin } from "../context/AdminContext";
 import { useAuth } from "../context/AuthContext";
+import { useFriends } from "../context/FriendsContext";
 import { useOrganization } from "../context/OrganizationContext";
 import { useTheme } from "../context/ThemeContext";
 import { headerLinks } from "../lib/access";
@@ -10,6 +11,7 @@ export default function Header() {
   const { session, mode, signOut } = useAuth();
   const { isAdmin } = useAdmin();
   const { organization } = useOrganization();
+  const { incomingCount } = useFriends();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const nextTheme = theme === "dark" ? "light" : "dark";
@@ -43,11 +45,25 @@ export default function Header() {
           </span>
         </Link>
         <div className="nav-links">
-          {links.map((link) => (
-            <Link to={link.to} key={link.label}>
-              {link.label}
-            </Link>
-          ))}
+          {links.map((link) => {
+            // The Huddle link carries a dot while friend requests are waiting.
+            const waiting = link.to === "/huddle" ? incomingCount : 0;
+            return (
+              <Link
+                to={link.to}
+                key={link.label}
+                className={waiting ? "nav-link-has-dot" : undefined}
+                aria-label={
+                  waiting
+                    ? `${link.label} · ${waiting} incoming friend ${waiting === 1 ? "request" : "requests"}`
+                    : undefined
+                }
+              >
+                {link.label}
+                {waiting ? <span className="nav-dot" aria-hidden="true" /> : null}
+              </Link>
+            );
+          })}
           {signedIn ? (
             <a href="#" onClick={handleLogout}>
               Log out

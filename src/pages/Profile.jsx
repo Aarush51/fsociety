@@ -1,20 +1,24 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import FriendCodeInput from "../components/FriendCodeInput";
-import { userIdForUser } from "../lib/userIds";
+import DraftRestoredNote from "../components/DraftRestoredNote";
+import useFormDraft from "../hooks/useFormDraft";
 import { SkillsFields, cleanHobbies, cleanInterests, cleanSkillLevels } from "../features/teams";
-import { Arrow, CopyIcon } from "../components/Icons";
+import { Arrow } from "../components/Icons";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
-import {
-  formatEventDate,
-  formatNumber,
-  formatReputation,
-  initialsFromName,
-  shortName,
-} from "../lib/format";
+import { formatEventDate, formatNumber, initialsFromName } from "../lib/format";
 import { supabase } from "../lib/supabase";
+
+const EMPTY_PROFILE_DRAFT = {
+  full_name: "",
+  username: "",
+  bio: "",
+  skills: [],
+  skill_levels: {},
+  interests: [],
+  hobbies: "",
+};
 
 const COIN_PAGE_SIZE = 10;
 const COIN_MAX_LIMIT = 200;
@@ -25,59 +29,45 @@ const TRANSACTION_LABELS = {
   adjustment: "Adjustment",
 };
 
-function Stars({ rating }) {
-  const value = Math.max(0, Math.min(5, Number(rating) || 0));
-  const empty = 5 - value;
-  return (
-    <span className="review-stars" role="img" aria-label={`${value} out of 5 stars`}>
-      {"★".repeat(value)}
-      {empty ? (
-        <span className="review-stars-empty" aria-hidden="true">
-          {"★".repeat(empty)}
-        </span>
-      ) : null}
-    </span>
-  );
-}
-
 export default function Profile() {
   const { user } = useAuth();
-  const [form, setForm] = useState({ full_name: "", username: "", bio: "" });
-  const [skills, setSkills] = useState([]);
-  const [stats, setStats] = useState(null);
+  // Every editable field the page owns lives in one draft, so a refresh keeps
+  // the edits. The draft waits for the stored profile (and its extras) so it is
+  // always merged over complete server values instead of blank fields.
+  const [serverProfile, setServerProfile] = useState(null);
+  const [extrasSettled, setExtrasSettled] = useState(false);
+  const [values, setValues, clearDraft, draftRestored] = useFormDraft(
+    `profile.${user?.id ?? "anonymous"}`,
+    serverProfile ?? EMPTY_PROFILE_DRAFT,
+    { enabled: Boolean(serverProfile) && extrasSettled },
+  );
+  const form = values;
+  const skills = values.skills;
+  const skillLevels = values.skill_levels;
+  const interests = values.interests;
+  const hobbies = values.hobbies;
   const [skillInput, setSkillInput] = useState("");
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState({ text: "Loading your profile…", error: false });
-  const [reviews, setReviews] = useState([]);
-  const [reviewsLoading, setReviewsLoading] = useState(true);
-  const [reviewsError, setReviewsError] = useState(null);
   const [ledger, setLedger] = useState(null);
   const [ledgerLoading, setLedgerLoading] = useState(true);
   const [ledgerError, setLedgerError] = useState(null);
   const [coinLimit, setCoinLimit] = useState(COIN_PAGE_SIZE);
   const [historyKey, setHistoryKey] = useState(0);
-  // The six-digit ID is derived from the account UUID, so it exists for
-  // everyone immediately; a stored six-digit friend_code wins once it exists.
-  const [friendCode, setFriendCode] = useState(() => userIdForUser(user));
-  const [codeStatus, setCodeStatus] = useState({ text: "", error: false });
-  const [copied, setCopied] = useState(false);
-  const [friends, setFriends] = useState([]);
-  const [skillLevels, setSkillLevels] = useState({});
-  const [interests, setInterests] = useState([]);
-  const [hobbies, setHobbies] = useState("");
   const [extrasLoaded, setExtrasLoaded] = useState(false);
   const [extrasMessage, setExtrasMessage] = useState({ text: "", error: false });
 
-  // The copy button reads "Copied" for a moment, then returns to "Copy".
-  useEffect(() => {
-    if (!copied) return undefined;
-    const timer = setTimeout(() => {
-      setCopied(false);
-      setCodeStatus({ text: "", error: false });
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, [copied]);
+  const setField = (field) => (value) =>
+    setValues((current) => ({
+      ...current,
+      [field]: typeof value === "function" ? value(current[field]) : value,
+    }));
+  const setForm = (next) => setValues((current) => ({ ...current, ...next }));
+  const setSkills = setField("skills");
+  const setSkillLevels = setField("skill_levels");
+  const setInterests = setField("interests");
+  const setHobbies = setField("hobbies");
 
   useEffect(() => {
     if (!supabase) return undefined;
@@ -90,15 +80,15 @@ export default function Profile() {
         if (!active) return;
         if (error) throw error;
         if (!data) throw new Error("Your profile could not be found.");
-        // Keep the derived ID on screen even if the lookup of extras fails later.
-        setForm({
+        // This is the base a restored draft is merged over, not the form state.
+        setServerProfile((current) => ({
+          ...EMPTY_PROFILE_DRAFT,
+          ...(current || {}),
           full_name: data.full_name || "",
           username: data.username || "",
           bio: data.bio || "",
-        });
-        setSkills(data.skills || []);
-        setStats(data);
-        setFriendCode(userIdForUser(user, data.friend_code));
+          skills: data.skills || [],
+        }));
         setReady(true);
         setMessage({ text: "", error: false });
       })
@@ -115,35 +105,6 @@ export default function Profile() {
       active = false;
     };
   }, []);
-
-  // Reviews the signed-in user received (team-scoped rows, so it goes through an RPC).
-  useEffect(() => {
-    if (!supabase) return undefined;
-
-    let active = true;
-    setReviewsLoading(true);
-    setReviewsError(null);
-    supabase
-      .rpc("get_my_received_reviews")
-      .then(({ data, error: requestError }) => {
-        if (!active) return;
-        if (requestError) throw requestError;
-        setReviews(Array.isArray(data) ? data : []);
-      })
-      .catch((requestError) => {
-        if (!active) return;
-        console.error("Could not load received reviews.", requestError);
-        setReviews([]);
-        setReviewsError(requestError);
-      })
-      .finally(() => {
-        if (active) setReviewsLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [historyKey]);
 
   // The caller's own coin ledger, newest first. The RPC caps the page at 200 rows.
   useEffect(() => {
@@ -185,14 +146,24 @@ export default function Profile() {
 
     let active = true;
     setExtrasMessage({ text: "", error: false });
+    // The saved draft unlocks once this lookup settles. A request that never
+    // answers must not keep the profile waiting, so the form unlocks anyway and
+    // the level fields stay read-only (and are not saved) until they load.
+    const unlockDraft = setTimeout(() => {
+      if (active) setExtrasSettled(true);
+    }, 8000);
     supabase
       .rpc("get_my_profile_extras")
       .then(({ data, error: requestError }) => {
         if (!active) return;
         if (requestError) throw requestError;
-        setSkillLevels(cleanSkillLevels(data?.skill_levels));
-        setInterests(cleanInterests(data?.interests));
-        setHobbies(cleanHobbies(data?.hobbies));
+        setServerProfile((current) => ({
+          ...EMPTY_PROFILE_DRAFT,
+          ...(current || {}),
+          skill_levels: cleanSkillLevels(data?.skill_levels),
+          interests: cleanInterests(data?.interests),
+          hobbies: cleanHobbies(data?.hobbies),
+        }));
         setExtrasLoaded(true);
       })
       .catch((requestError) => {
@@ -205,10 +176,17 @@ export default function Profile() {
           text: requestError.message || "Skills, interests and hobbies could not be loaded.",
           error: true,
         });
+      })
+      .finally(() => {
+        // A failed lookup still unlocks the profile draft: the rest of the form
+        // is editable and should not lose what someone typed.
+        clearTimeout(unlockDraft);
+        if (active) setExtrasSettled(true);
       });
 
     return () => {
       active = false;
+      clearTimeout(unlockDraft);
     };
   }, [historyKey]);
 
@@ -249,18 +227,22 @@ export default function Profile() {
     setSaving(true);
     setMessage({ text: "Saving your profile…", error: false });
     try {
+      const trimmedName = form.full_name.trim();
+      const trimmedUsername = form.username.trim();
+      const trimmedBio = form.bio.trim();
       const { error } = await supabase.rpc("save_my_profile", {
-        p_full_name: form.full_name.trim(),
-        p_username: form.username.trim(),
-        p_bio: form.bio.trim(),
+        p_full_name: trimmedName,
+        p_username: trimmedUsername,
+        p_bio: trimmedBio,
         p_skills: skills,
       });
       if (error) throw error;
-      setForm({
-        full_name: form.full_name.trim(),
-        username: form.username.trim(),
-        bio: form.bio.trim(),
-      });
+      let savedValues = {
+        ...values,
+        full_name: trimmedName,
+        username: trimmedUsername,
+        bio: trimmedBio,
+      };
       setMessage({ text: "Your profile has been saved.", error: false });
 
       // The level-based fields save in their own call: the profile itself is
@@ -273,9 +255,12 @@ export default function Profile() {
             p_hobbies: hobbies.trim(),
           });
           if (extrasError) throw extrasError;
-          setSkillLevels(cleanSkillLevels(saved?.skill_levels));
-          setInterests(cleanInterests(saved?.interests));
-          setHobbies(cleanHobbies(saved?.hobbies));
+          savedValues = {
+            ...savedValues,
+            skill_levels: cleanSkillLevels(saved?.skill_levels),
+            interests: cleanInterests(saved?.interests),
+            hobbies: cleanHobbies(saved?.hobbies),
+          };
           setExtrasMessage({ text: "", error: false });
         } catch (extrasError) {
           console.error("Could not save skills, interests and hobbies.", extrasError);
@@ -285,6 +270,8 @@ export default function Profile() {
           });
         }
       }
+      // The profile is stored, so the saved draft has nothing left to restore.
+      clearDraft(savedValues);
     } catch (error) {
       console.error("Could not save the profile.", error);
       setMessage({
@@ -296,30 +283,10 @@ export default function Profile() {
     }
   };
 
-  const handleCopyFriendCode = async () => {
-    if (!friendCode) return;
-    try {
-      if (!navigator.clipboard?.writeText) {
-        throw new Error("Clipboard access is unavailable in this browser.");
-      }
-      await navigator.clipboard.writeText(friendCode);
-      setCopied(true);
-      setCodeStatus({ text: "Copied", error: false });
-    } catch (error) {
-      console.error("Could not copy the friend ID.", error);
-      setCopied(false);
-      setCodeStatus({
-        text: "Could not copy automatically — select the ID and copy it.",
-        error: true,
-      });
-    }
-  };
-
-  const handleFriendFound = (member) => {
-    setFriends((current) => [member, ...current.filter((friend) => friend.id !== member.id)]);
-  };
-
-  const disabled = !ready || saving;
+  // Editing waits for the whole profile (including skills, interests and
+  // hobbies) so a saved draft is always merged over real values and nothing
+  // typed during the load can be overwritten.
+  const disabled = !ready || !extrasSettled || saving;
   const displayName = ready ? form.full_name || "Your profile" : "Edit your profile";
 
   return (
@@ -343,49 +310,14 @@ export default function Profile() {
             <p className="muted small" id="profile-email">
               {user?.email || ""}
             </p>
-            <div className="friend-code-block">
-              <span className="eyebrow">YOUR ID</span>
-              <div className="friend-code-row">
-                <input
-                  id="profile-friend-code"
-                  type="text"
-                  readOnly
-                  value={friendCode}
-                  placeholder="Not generated yet"
-                  aria-label="Your HackMate ID"
-                  onFocus={(event) => event.target.select()}
-                />
-                <button
-                  id="profile-copy-friend-code"
-                  className="button button-outline"
-                  type="button"
-                  onClick={handleCopyFriendCode}
-                  disabled={!friendCode}
-                  aria-label={copied ? "ID copied" : "Copy your six-digit friend ID"}
-                >
-                  <CopyIcon />
-                  {copied ? "Copied" : "Copy"}
-                </button>
-              </div>
-              <p className="muted tiny friend-code-share">
-                {friendCode ? (
-                  <>
-                    Share your ID: <strong>{friendCode}</strong> — friends can find you with it.
-                  </>
-                ) : (
-                  "Your ID isn’t available yet."
-                )}
-              </p>
-              <p
-                id="profile-friend-code-message"
-                className="form-message"
-                role="status"
-                aria-live="polite"
-                data-error={codeStatus.error}
-              >
-                {codeStatus.text}
-              </p>
-            </div>
+            {draftRestored ? (
+              <DraftRestoredNote
+                onStartOver={() => {
+                  clearDraft();
+                  setMessage({ text: "", error: false });
+                }}
+              />
+            ) : null}
             <form id="profile-form" onSubmit={handleSubmit}>
               <label htmlFor="profile-full-name">Full name</label>
               <input
@@ -501,24 +433,6 @@ export default function Profile() {
             </form>
           </section>
           <div className="profile-side">
-            <section className="profile-stats" aria-label="Your HackMate stats">
-              <article>
-                <span className="eyebrow">COIN BALANCE</span>
-                <strong id="profile-coins">{stats ? formatNumber(stats.coin_balance) : "—"}</strong>
-                <span className="muted tiny">coins</span>
-              </article>
-              <article>
-                <span className="eyebrow">REPUTATION</span>
-                <strong id="profile-reputation">
-                  {stats ? formatReputation(stats.reputation) : "—"}
-                </strong>
-                <span id="profile-review-count" className="muted tiny">
-                  {stats
-                    ? `${Number(stats.review_count) || 0} ${Number(stats.review_count) === 1 ? "review" : "reviews"}`
-                    : "Based on reviews"}
-                </span>
-              </article>
-            </section>
             <section className="dark-callout">
               <p className="eyebrow light-eyebrow">LOOKING TO BUILD</p>
               <h2>Tools that make student life a little easier.</h2>
@@ -539,104 +453,7 @@ export default function Profile() {
             </section>
           </div>
         </div>
-        <section className="dashboard-data-section" aria-label="Add a friend with a friend ID">
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">ADD A FRIEND</p>
-              <h2>Look someone up by ID.</h2>
-            </div>
-          </div>
-          <div className="friend-code-panel">
-            <p className="muted small friend-code-intro">
-              Type a six-digit HackMate ID to see who it belongs to before you add them.
-            </p>
-            <FriendCodeInput
-              id="profile-friend-lookup"
-              label="Their ID"
-              confirmLabel="Add friend"
-              addedIds={friends.map((friend) => friend.id)}
-              onConfirm={handleFriendFound}
-            />
-            <div className="friend-code-added" aria-live="polite">
-              {friends.length ? (
-                <div className="dashboard-item-list">
-                  {friends.map((friend) => (
-                    <article className="dashboard-data-card" key={friend.id}>
-                      <span>
-                        <strong>{shortName(friend.full_name)}</strong>
-                        <small>{friend.friend_code} · added this visit</small>
-                      </span>
-                    </article>
-                  ))}
-                </div>
-              ) : null}
-              <p className="muted tiny friend-code-note">
-                Friend requests aren’t saved yet — share your own ID so they can add you back.
-              </p>
-            </div>
-          </div>
-        </section>
-        <div className="profile-history-layout">
-          <section className="dashboard-data-section" aria-label="Reviews you received">
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">RECEIVED REVIEWS</p>
-                <h2>What teammates say.</h2>
-              </div>
-              {reviews.length ? (
-                <span className="muted tiny">
-                  {formatNumber(reviews.length)} {reviews.length === 1 ? "review" : "reviews"}
-                </span>
-              ) : null}
-            </div>
-            <div id="profile-reviews" className="profile-history-list" aria-live="polite">
-              {reviewsLoading ? (
-                <p className="dashboard-empty">Loading your reviews…</p>
-              ) : reviewsError ? (
-                <p className="dashboard-empty">
-                  Your reviews couldn’t be loaded.{" "}
-                  <button
-                    className="text-link"
-                    type="button"
-                    onClick={() => setHistoryKey((key) => key + 1)}
-                  >
-                    Try again
-                  </button>
-                </p>
-              ) : reviews.length ? (
-                reviews.map((review) => (
-                  <article className="profile-review-card" key={review.id}>
-                    <div className="profile-review-top">
-                      <div>
-                        <strong>
-                          {review.reviewer_name || review.reviewer_username || "A teammate"}
-                        </strong>
-                        {review.reviewer_username ? (
-                          <span className="muted tiny"> @{review.reviewer_username}</span>
-                        ) : null}
-                        <small>
-                          {[review.project_title, review.team_name, formatEventDate(review.created_at)]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </small>
-                      </div>
-                      <Stars rating={review.rating} />
-                    </div>
-                    {review.comment ? (
-                      <p className="profile-review-comment">{review.comment}</p>
-                    ) : (
-                      <p className="profile-review-comment muted">No comment was left.</p>
-                    )}
-                  </article>
-                ))
-              ) : (
-                <p className="dashboard-empty">
-                  No reviews yet. Teammates can review you after you build something together.
-                </p>
-              )}
-            </div>
-          </section>
-          <section className="dashboard-data-section" aria-label="Coin history">
+        <section className="dashboard-data-section" aria-label="Coin history">
             <div className="section-heading">
               <div>
                 <p className="eyebrow">COIN HISTORY</p>
@@ -709,8 +526,7 @@ export default function Profile() {
                 </p>
               )
             ) : null}
-          </section>
-        </div>
+        </section>
       </main>
     </>
   );

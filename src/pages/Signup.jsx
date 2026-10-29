@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import DraftRestoredNote from "../components/DraftRestoredNote";
 import PageTitle from "../components/PageTitle";
 import { SkillsFields, cleanInterests, cleanSkillLevels } from "../features/teams";
+import useFormDraft from "../hooks/useFormDraft";
 import { safeRedirectTarget } from "../lib/format";
 
 const AUDIENCES = [
@@ -15,17 +17,30 @@ export default function Signup() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirect = searchParams.get("redirect");
-  const [audience, setAudience] = useState(
-    searchParams.get("as") === "organization" ? "organization" : "participant",
-  );
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+
+  // Signup happens before there is a user id, so the draft key is just "signup".
+  // The password is never part of these values: it stays in its own state below.
+  const [values, setValues, clearDraft, draftRestored] = useFormDraft("signup", {
+    audience: searchParams.get("as") === "organization" ? "organization" : "participant",
+    name: "",
+    email: "",
+    skillLevels: {},
+    interests: [],
+    hobbies: "",
+  });
+  const { audience, name, email, skillLevels, interests, hobbies } = values;
   const [password, setPassword] = useState("");
-  const [skillLevels, setSkillLevels] = useState({});
-  const [interests, setInterests] = useState([]);
-  const [hobbies, setHobbies] = useState("");
   const [message, setMessage] = useState({ text: "", error: false });
   const [submitting, setSubmitting] = useState(false);
+
+  const setField = (field) => (value) =>
+    setValues((current) => ({ ...current, [field]: value }));
+  const setAudience = setField("audience");
+  const setName = setField("name");
+  const setEmail = setField("email");
+  const setSkillLevels = setField("skillLevels");
+  const setInterests = setField("interests");
+  const setHobbies = setField("hobbies");
 
   if (!loading && session) {
     return <Navigate to={safeRedirectTarget(redirect) || "/dashboard"} replace />;
@@ -47,6 +62,10 @@ export default function Signup() {
             interests: cleanInterests(interests),
             hobbies: hobbies.trim(),
           });
+      // The account exists, so the typed-in draft (and the password in memory)
+      // has served its purpose.
+      clearDraft();
+      setPassword("");
       if (!result.session) {
         setMessage({
           text: wantsOrganization
@@ -105,6 +124,7 @@ export default function Signup() {
                 : "Create an account and find your people."}
             </p>
           </div>
+          {draftRestored ? <DraftRestoredNote onStartOver={() => clearDraft()} /> : null}
           <form id="auth-form" onSubmit={handleSubmit}>
             <label>
               Your name

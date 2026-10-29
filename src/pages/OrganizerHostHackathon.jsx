@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
+import DraftRestoredNote from "../components/DraftRestoredNote";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
 import { useAuth } from "../context/AuthContext";
 import { useOrganization } from "../context/OrganizationContext";
+import useFormDraft from "../hooks/useFormDraft";
 import { createHackathon, validateHackathon } from "../lib/organizations";
 
 const EMPTY_FORM = {
@@ -43,7 +45,10 @@ export default function OrganizerHostHackathon() {
   const { user } = useAuth();
   const { organization, loading } = useOrganization();
   const navigate = useNavigate();
-  const [values, setValues] = useState(EMPTY_FORM);
+  const [values, setValues, clearDraft, draftRestored] = useFormDraft(
+    `host-hackathon.${user?.id ?? "anonymous"}`,
+    EMPTY_FORM,
+  );
   const [errors, setErrors] = useState({});
   const [message, setMessage] = useState({ text: "", error: false });
   const [submitting, setSubmitting] = useState(false);
@@ -88,6 +93,7 @@ export default function OrganizerHostHackathon() {
     setMessage({ text: "", error: false });
     try {
       await createHackathon({ organization, user, values });
+      clearDraft();
       navigate("/organizer");
     } catch (error) {
       setMessage({ text: error.message || "Your hackathon could not be saved.", error: true });
@@ -111,6 +117,15 @@ export default function OrganizerHostHackathon() {
           title="Bring people together, offline."
           description={`Every hackathon you publish runs under ${organization.org_name}. Add the venue first — participants need to know exactly where to show up.`}
         />
+        {draftRestored ? (
+          <DraftRestoredNote
+            onStartOver={() => {
+              clearDraft();
+              setErrors({});
+              setMessage({ text: "", error: false });
+            }}
+          />
+        ) : null}
         <form className="org-form" onSubmit={handleSubmit} noValidate>
           <p className="eyebrow">EVENT BASICS</p>
           <Field label="Hackathon title" error={errors.title}>

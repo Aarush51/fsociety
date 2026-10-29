@@ -4,20 +4,24 @@ import { Arrow } from "../components/Icons";
 import OrganizationStatusBanner from "../components/OrganizationStatusBanner";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
+import StarRating from "../components/StarRating";
 import { useOrganization } from "../context/OrganizationContext";
+import useHackathonRatings from "../hooks/useHackathonRatings";
 import { formatEventDate, formatNumber, formatPrice } from "../lib/format";
 import { loadOrganizerEvents, summarizeOrganizerEvents } from "../lib/organizations";
+import { fetchOrganizationRating, formatRatingSummary } from "../lib/reviews";
 
 const VIEWS = [
   { value: "current", label: "Current" },
   { value: "past", label: "Past" },
 ];
 
-function EventRow({ event }) {
+function EventRow({ event, rating }) {
   const venue = [event.venue_name, event.city].filter(Boolean).join(", ") || "Venue to be announced";
   const dates = `${formatEventDate(event.starts_at)} – ${formatEventDate(event.ends_at)}`;
   const registered = Number(event.registered_count) || 0;
   const capacity = Number(event.capacity) || 0;
+  const ended = event.ends_at ? new Date(event.ends_at).getTime() <= Date.now() : false;
   return (
     <article className="dashboard-data-card">
       <span>
@@ -27,6 +31,15 @@ function EventRow({ event }) {
           <span>{dates}</span>
           <span>{capacity ? `${registered} of ${capacity} registered` : `${registered} registered`}</span>
           <span>{formatPrice(event.price)}</span>
+          {ended ? (
+            <span className="event-rating">
+              <StarRating value={rating?.average || 0} />
+              <span className="muted tiny">{formatRatingSummary(rating)}</span>
+              <Link className="text-link" to={`/hackathons/${encodeURIComponent(event.slug)}#reviews`}>
+                Reviews <Arrow diagonal />
+              </Link>
+            </span>
+          ) : null}
         </span>
       </span>
       <span className="filter-list">
@@ -53,6 +66,24 @@ export default function OrganizerDashboard() {
   const [error, setError] = useState(null);
   const [view, setView] = useState("current");
   const [reloadKey, setReloadKey] = useState(0);
+  const [orgRating, setOrgRating] = useState(null);
+  const ratings = useHackathonRatings(events);
+
+  useEffect(() => {
+    let active = true;
+    setOrgRating(null);
+    if (!organization?.id) return undefined;
+    fetchOrganizationRating(organization.id)
+      .then((data) => {
+        if (active) setOrgRating(data);
+      })
+      .catch((requestError) => {
+        console.error("Could not load your organization rating.", requestError);
+      });
+    return () => {
+      active = false;
+    };
+  }, [organization?.id]);
 
   useEffect(() => {
     if (!organization) return undefined;
@@ -147,6 +178,17 @@ export default function OrganizerDashboard() {
             <strong>{loading ? "—" : formatNumber(summary.past.length)}</strong>
             <span className="muted tiny">already finished</span>
           </article>
+          <article>
+            <span className="eyebrow">OVERALL RATING</span>
+            <strong>
+              {orgRating === null
+                ? "—"
+                : Number(orgRating.count)
+                  ? formatRatingSummary(orgRating)
+                  : "No reviews yet"}
+            </strong>
+            <span className="muted tiny">from your finished events</span>
+          </article>
         </section>
         <div className="organizer-toolbar">
           <div className="filter-list" aria-label="Filter your hackathons">
@@ -194,7 +236,9 @@ export default function OrganizerDashboard() {
         </p>
         <div className="dashboard-item-list" aria-busy={loading}>
           {loading ? null : visible.length ? (
-            visible.map((event) => <EventRow event={event} key={event.id} />)
+            visible.map((event) => (
+              <EventRow event={event} rating={ratings[event.id]} key={event.id} />
+            ))
           ) : (
             <p className="dashboard-empty">
               {view === "current"
