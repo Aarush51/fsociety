@@ -6,6 +6,7 @@ import LeaderboardRows from "../components/LeaderboardRows";
 import PageTitle from "../components/PageTitle";
 import SectionHeading from "../components/SectionHeading";
 import useHackathonRatings from "../hooks/useHackathonRatings";
+import PatternWaves from "../components/PatternWaves";
 import { events, leaderboard } from "../lib/demoData";
 import { hackathonCardData } from "../lib/format";
 import { supabase } from "../lib/supabase";
@@ -124,6 +125,7 @@ export default function Home() {
       <PageTitle title="HackMate — Your people. Your project. Your moment." />
       <main>
         <section className="hero wrap">
+          <PatternWaves />
           <div className="hero-copy">
             <p className="status-pill">
               <span className="online-dot" /> YOUR NEXT BIG THING STARTS HERE
