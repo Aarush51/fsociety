@@ -23,15 +23,13 @@ export function headerLinks({ signedIn, mode, hasOrganization, isAdmin }) {
     ];
   } else if (mode === "organization" && hasOrganization) {
     links = [
-      { label: "Dashboard", to: "/organizer" },
-      { label: "Host a hackathon", to: "/organizer/host" },
-      { label: "My organization", to: "/organizer" },
+      { label: "Hackathons", to: "/hackathons" },
       { label: "Idea generator", to: "/ideas" },
-      { label: "The Huddle", to: "/huddle" },
+      { label: "Leaderboard", to: "/leaderboard" },
     ];
   } else {
     links = [
-      { label: "Discover", to: "/hackathons" },
+      { label: "Hackathons", to: "/hackathons" },
       { label: "Idea generator", to: "/ideas" },
       { label: "Leaderboard", to: "/leaderboard" },
       { label: "My teams", to: "/teams" },

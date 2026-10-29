@@ -54,6 +54,11 @@ export default function Leaderboard() {
           title="Celebrate the doers."
           description="Every prototype, new skill, and teammate helped along the way counts. Meet some of the builders showing up this month."
         />
+        <section className="leaderboard-stat-grid" aria-label="Leaderboard highlights">
+          <article><span>TOP BUILDER</span><strong>{people[0]?.name || "—"}</strong><small>{people[0]?.points || "0"} points</small></article>
+          <article><span>ACTIVE THIS MONTH</span><strong>{people.length || 0}</strong><small>ranked creators</small></article>
+          <article><span>COMMUNITY SCORE</span><strong>{people.reduce((total, person) => total + (Number(person.score) || 0), 0).toLocaleString()}</strong><small>points earned</small></article>
+        </section>
         <div className="leaderboard-page-layout">
           <section className="leaderboard-table">
             <div className="leaderboard-heading">

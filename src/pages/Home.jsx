@@ -140,8 +140,11 @@ export default function Home() {
               something real.
             </p>
             <div className="hero-actions">
-              <Link className="button button-dark" to="/hackathons">
+              <Link className="button button-lime" to="/hackathons">
                 Explore hackathons <Arrow />
+              </Link>
+              <Link className="button button-outline" to="/ideas">
+                Try idea generator <Arrow />
               </Link>
             </div>
             <p className="social-proof">
@@ -208,6 +211,51 @@ export default function Home() {
               <span className="tiny muted">TEAM MATCH</span>
               <strong>It just clicks. ✨</strong>
             </div>
+          </div>
+        </section>
+
+        <section className="home-bento-section wrap" aria-labelledby="build-together-heading">
+          <div className="home-section-heading">
+            <div>
+              <p className="eyebrow">THE BUILD OS</p>
+              <h2 id="build-together-heading">From spark to shipped.</h2>
+            </div>
+            <p>Find the challenge, shape the idea, meet your team, and keep the momentum going.</p>
+          </div>
+          <div className="home-bento-grid">
+            <article className="bento-card bento-card-featured">
+              <span className="bento-kicker">01 / DISCOVER</span>
+              <div className="bento-icon" aria-hidden="true">⌁</div>
+              <h3>Find the right room.</h3>
+              <p>Explore focused challenges across climate, AI, health, social impact, and open innovation.</p>
+              <Link to="/hackathons" className="text-link">Browse hackathons <Arrow /></Link>
+            </article>
+            <article className="bento-card bento-card-blue">
+              <span className="bento-kicker">02 / TEAM UP</span>
+              <div className="bento-stat">146</div>
+              <h3>Teams formed this month</h3>
+              <p>Match across skills, interests, timezones, and ambition.</p>
+            </article>
+            <article className="bento-card bento-card-ai">
+              <span className="bento-kicker">03 / CREATE WITH AI</span>
+              <div className="ai-mini-result">
+                <span className="ai-live-dot" />
+                <div>
+                  <small>HACKMATE AI</small>
+                  <strong>Campus Carbon Companion</strong>
+                </div>
+              </div>
+              <p>A focused idea, practical stack, and team roles—generated around your strengths.</p>
+              <Link to="/ideas" className="text-link">Generate an idea <Arrow /></Link>
+            </article>
+            <article className="bento-card bento-card-community">
+              <span className="bento-kicker">COMMUNITY</span>
+              <div className="community-stats">
+                <div><strong>2.4k+</strong><span>builders</span></div>
+                <div><strong>18</strong><span>live events</span></div>
+                <div><strong>32</strong><span>cities</span></div>
+              </div>
+            </article>
           </div>
         </section>
 
