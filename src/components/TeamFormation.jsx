@@ -1,13 +1,12 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { initialsFromName, shortName } from "../lib/format";
-import { rankTeamsForMe } from "../lib/skillMatch";
 import {
   createHackathonTeam,
-  joinHackathonTeam,
   joinTeamById,
   memberCount,
   openSpots,
+  suggestTeams,
   teamCodeFrom,
   teamSize,
 } from "../lib/teams";
@@ -102,10 +101,31 @@ export default function TeamFormation({ hackathon, userId, mySkills, teams, myTe
   const [message, setMessage] = useState({ text: "", error: false });
   const [copied, setCopied] = useState(false);
 
-  const rankedTeams = useMemo(
-    () => rankTeamsForMe(mySkills || [], teams || []).slice(0, 6),
-    [mySkills, teams],
-  );
+  // Suggestions come from suggest_teams(): open teams scored by the skills the
+  // caller adds and the interests they share. No member identities are returned.
+  const [suggestions, setSuggestions] = useState({ loading: false, rows: [], error: "" });
+
+  const loadSuggestions = useCallback(async () => {
+    if (!hackathon?.id) return;
+    setSuggestions({ loading: true, rows: [], error: "" });
+    try {
+      const rows = await suggestTeams(hackathon.id);
+      setSuggestions({ loading: false, rows, error: "" });
+    } catch (error) {
+      console.error("Could not load team suggestions.", error);
+      setSuggestions({
+        loading: false,
+        rows: [],
+        error: error.message || "Team suggestions could not be loaded.",
+      });
+    }
+  }, [hackathon?.id]);
+
+  // Only fetched when the option is opened.
+  useEffect(() => {
+    if (choice !== "skill") return;
+    loadSuggestions();
+  }, [choice, loadSuggestions]);
 
   const run = async (action, successText) => {
     setBusy(true);
@@ -143,10 +163,15 @@ export default function TeamFormation({ hackathon, userId, mySkills, teams, myTe
     }, `Team “${name}” created${createdId ? ` · share ID ${teamCodeFrom(createdId)} so others can join` : ""}.`);
   };
 
-  const handleJoin = (team) =>
+  const handleJoinSuggestion = (suggestion) =>
     run(
-      () => joinHackathonTeam(team.id),
-      `You joined “${team.name}” · team ID ${teamCodeFrom(team.id)}.`,
+      () =>
+        joinTeamById({
+          hackathonId: hackathon.id,
+          teamCode: suggestion.team_id,
+          teams,
+        }),
+      `You joined “${suggestion.team_name}”.`,
     );
 
   // Join by the ID a leader shared. There is no team directory here: the ID is
@@ -363,8 +388,8 @@ export default function TeamFormation({ hackathon, userId, mySkills, teams, myTe
       {choice === "skill" ? (
         <div className="team-browser">
           <p className="muted small">
-            Teams ranked by what you add to them, what you already share, and what you would learn.
-            Only teams with open spots are shown.
+            Teams ranked by the skills you add and the interests you share. Only teams with open
+            spots in this hackathon are shown.
           </p>
           {mySkills?.length ? (
             <div className="profile-skill-list">
@@ -383,32 +408,80 @@ export default function TeamFormation({ hackathon, userId, mySkills, teams, myTe
               to improve matches.
             </p>
           )}
-          <div className="team-list" aria-live="polite">
-            {rankedTeams.length ? (
-              rankedTeams.map(({ team, fit }) => (
-                <TeamCard
-                  team={team}
-                  userId={userId}
-                  key={team.id}
-                  badge={`Fit ${fit.score}`}
-                  reasons={fit.reasons}
-                >
-                  <button
-                    className="button button-dark"
-                    type="button"
-                    disabled={busy}
-                    onClick={() => handleJoin(team)}
-                  >
-                    {busy ? "Joining…" : "Join this team"}
-                  </button>
-                </TeamCard>
-              ))
-            ) : (
-              <p className="team-empty">
-                No teams with open spots yet. Make one and share its team ID so others can join you.
-              </p>
-            )}
-          </div>
+          {suggestions.loading ? (
+            <p className="muted tiny">Looking for teams that need your skills…</p>
+          ) : null}
+          {suggestions.error ? (
+            <p className="team-empty">
+              {suggestions.error}{" "}
+              <button className="text-link" type="button" onClick={loadSuggestions}>
+                Try again
+              </button>
+            </p>
+          ) : null}
+          {!suggestions.loading && !suggestions.error ? (
+            <div className="team-list" aria-live="polite">
+              {suggestions.rows.length ? (
+                suggestions.rows.map((suggestion) => (
+                  <article className="team-card" key={suggestion.team_id}>
+                    <div className="team-card-heading">
+                      <div>
+                        <p className="eyebrow">MATCHED ON SKILLS</p>
+                        <h2>{suggestion.team_name}</h2>
+                      </div>
+                      <span className="team-member-count">
+                        {suggestion.member_count} /{" "}
+                        {Number(suggestion.member_count) + Number(suggestion.spots_left)} members
+                      </span>
+                    </div>
+                    <p className="team-description">
+                      {suggestion.spots_left}{" "}
+                      {Number(suggestion.spots_left) === 1 ? "spot is" : "spots are"} still open.
+                    </p>
+                    {suggestion.missing_skills?.length ? (
+                      <>
+                        <p className="eyebrow">SKILLS THEY NEED FROM YOU</p>
+                        <div className="skill-list">
+                          {suggestion.missing_skills.map((skill) => (
+                            <span className="skill" key={skill}>
+                              {skill}
+                            </span>
+                          ))}
+                        </div>
+                      </>
+                    ) : null}
+                    {suggestion.shared_interests?.length ? (
+                      <>
+                        <p className="eyebrow">SHARED INTERESTS</p>
+                        <div className="skill-list">
+                          {suggestion.shared_interests.map((interest) => (
+                            <span className="skill" key={interest}>
+                              {interest}
+                            </span>
+                          ))}
+                        </div>
+                      </>
+                    ) : null}
+                    <div className="team-card-actions">
+                      <button
+                        className="button button-dark"
+                        type="button"
+                        disabled={busy}
+                        onClick={() => handleJoinSuggestion(suggestion)}
+                      >
+                        {busy ? "Joining…" : "Join this team"}
+                      </button>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <p className="team-empty">
+                  No team fits your skills yet. Make one and share its team ID so others can join
+                  you.
+                </p>
+              )}
+            </div>
+          ) : null}
         </div>
       ) : null}
 

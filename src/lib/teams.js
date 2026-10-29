@@ -87,18 +87,6 @@ export async function joinHackathonTeam(teamId) {
   if (error) throw new Error(error.message || "You could not join that team.");
 }
 
-// Clear, specific messages for every answer the join RPC can give.
-export const JOIN_TEAM_MESSAGES = {
-  not_signed_in: "Log in to join a team.",
-  invalid_id: "Paste the team ID you were given.",
-  unknown_team: "No team with that ID. Check the ID and try again.",
-  wrong_hackathon: "That team is in a different hackathon. Use the ID shared for this event.",
-  team_full: "That team is full. Ask its leader to free a spot, or make a team of your own.",
-  already_in_team: "You’re already on a team for this hackathon.",
-  not_registered: "Register for this hackathon before joining a team.",
-  hackathon_closed: "This hackathon is no longer open for teams.",
-};
-
 function isMissingRpc(error) {
   return (
     error?.code === "PGRST202" ||
@@ -106,32 +94,43 @@ function isMissingRpc(error) {
   );
 }
 
-// Join by the ID a team leader shared. The database resolves the uuid (or its
-// short code), then checks the team belongs to this hackathon, that the caller
-// is registered, not already on a team here, and that a spot is still open.
+// Join by the ID a team leader shared. join_team_by_code() resolves the uuid or
+// its short code inside the database and enforces the hackathon, registration,
+// suspension, membership and capacity rules, so its message is shown verbatim.
 // Older databases without that RPC fall back to the existing join call plus the
 // checks this page can do on its own.
 export async function joinTeamById({ hackathonId, teamCode, teams = [] }) {
   if (!supabase) throw new Error("Supabase is not configured.");
   const code = String(teamCode || "").trim();
-  if (!code) throw new Error(JOIN_TEAM_MESSAGES.invalid_id);
+  if (!code) throw new Error("Enter the team ID you were given.");
 
-  const { data, error } = await supabase.rpc("join_hackathon_team_by_id", {
+  const { data, error } = await supabase.rpc("join_team_by_code", {
     p_hackathon_id: hackathonId,
     p_team_code: code,
   });
 
   if (!error) {
-    if (data?.ok) return { teamId: data.team_id, teamName: data.team_name };
-    throw new Error(JOIN_TEAM_MESSAGES[data?.error] || "That team could not be joined.");
+    return { teamId: data?.id || "", teamName: data?.name || "", team: data || null };
   }
   if (!isMissingRpc(error)) {
     throw new Error(error.message || "That team could not be joined.");
   }
 
-  console.warn("join_hackathon_team_by_id is missing; run the latest team migration.");
+  console.warn("join_team_by_code is missing; run the latest team migration.");
   const team = findTeamsByQuery(teams, code)[0];
-  if (!team) throw new Error(JOIN_TEAM_MESSAGES.unknown_team);
+  if (!team) throw new Error("No team in this hackathon uses that team ID.");
   await joinHackathonTeam(team.id);
-  return { teamId: team.id, teamName: team.name };
+  return { teamId: team.id, teamName: team.name, team: null };
+}
+
+// Skill and interest matches from the database. Each row is only a team id,
+// name, member count, spots left, the skills the team lacks that the caller has,
+// and shared interests — never a member identity.
+export async function suggestTeams(hackathonId) {
+  if (!supabase || !hackathonId) return [];
+  const { data, error } = await supabase.rpc("suggest_teams", {
+    p_hackathon_id: hackathonId,
+  });
+  if (error) throw error;
+  return Array.isArray(data) ? data : [];
 }
