@@ -8,17 +8,20 @@ import { useAdmin } from "../context/AdminContext";
 import {
   loadEventReviewsForModeration,
   loadFlaggedUsers,
+  loadHackathonsForTierReview,
   loadOrganizationsForReview,
+  reviewHackathon,
   reviewOrganization,
   setEventReviewHidden,
 } from "../lib/admin";
-import { formatEventDate } from "../lib/format";
-import { organizationTypeLabel } from "../lib/organizations";
+import { formatEventDate, formatNumber } from "../lib/format";
+import { HACKATHON_TIERS, organizationTypeLabel, tierLabel } from "../lib/organizations";
 
 const TABS = [
   { value: "pending", label: "Pending" },
   { value: "approved", label: "Approved" },
   { value: "rejected", label: "Rejected" },
+  { value: "tiers", label: "Tiers" },
   { value: "reviews", label: "Reviews" },
   { value: "flagged", label: "Flagged users" },
 ];
@@ -27,6 +30,7 @@ const EMPTY_COPY = {
   pending: "Nothing is waiting for review right now.",
   approved: "No organizations have been approved yet.",
   rejected: "No organizations have been rejected yet.",
+  tiers: "No hackathon has claimed a tier yet.",
 };
 
 function Fact({ label, children }) {
@@ -73,6 +77,90 @@ function ReviewCard({ review, busy, onToggle }) {
         >
           Open reviews <Arrow diagonal />
         </Link>
+      </div>
+    </article>
+  );
+}
+
+function TierCard({ event, busy, onDecide }) {
+  const approved = Number(event.approved_tier) || null;
+  const claimed = Number(event.claimed_tier) || null;
+  // The picker starts on the organizer's claim; the admin can move it.
+  const [tier, setTier] = useState(claimed || 3);
+  const prizePool =
+    event.prize_pool === null || event.prize_pool === undefined
+      ? "—"
+      : `₹${formatNumber(event.prize_pool)}`;
+  const status = event.approval_status || "pending";
+  const badgeClass =
+    status === "approved"
+      ? "admin-badge-approved"
+      : status === "rejected"
+        ? "admin-badge-rejected"
+        : "admin-badge-pending";
+  return (
+    <article className="admin-card">
+      <header className="admin-card-head">
+        <div>
+          <p className="eyebrow">
+            {[event.organizer, event.city].filter(Boolean).join(" · ") || "Hackathon"} · starts{" "}
+            {formatEventDate(event.starts_at)}
+          </p>
+          <h2>{event.title}</h2>
+        </div>
+        <span className={`admin-badge ${badgeClass}`}>{
+          approved ? `${status} · ${tierLabel(approved)}` : status
+        }</span>
+      </header>
+
+      <dl className="admin-facts">
+        <Fact label="Claimed tier">{tierLabel(claimed) || "Not claimed"}</Fact>
+        <Fact label="Approved tier">{approved ? tierLabel(approved) : "—"}</Fact>
+        <Fact label="Expected participants">{event.expected_participants ?? "—"}</Fact>
+        <Fact label="Prize pool">{prizePool}</Fact>
+      </dl>
+
+      <p className="admin-description">
+        <strong>Reason for claimed tier:</strong> {event.tier_reason || "No reason given."}
+      </p>
+
+      <div className="filter-list" role="group" aria-label={`Approve ${event.title} as`}>
+        {HACKATHON_TIERS.map((option) => (
+          <button
+            className={tier === option.value ? "filter-active" : "skill"}
+            type="button"
+            disabled={busy}
+            aria-pressed={tier === option.value}
+            key={option.value}
+            onClick={() => setTier(option.value)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+      <span className="org-field-hint">
+        {claimed
+          ? `Defaults to the organizer's claim (${tierLabel(claimed)}). Pick the tier you are approving.`
+          : "The organizer claimed no tier. Pick the tier you are approving."}
+      </span>
+
+      <div className="admin-actions">
+        <button
+          className="button button-dark"
+          type="button"
+          disabled={busy}
+          onClick={() => onDecide(event, "approved", tier)}
+        >
+          {busy ? "Saving…" : `Approve as ${tierLabel(tier)}`}
+        </button>
+        <button
+          className="button button-outline"
+          type="button"
+          disabled={busy}
+          onClick={() => onDecide(event, "rejected", null)}
+        >
+          Reject
+        </button>
       </div>
     </article>
   );
@@ -275,6 +363,10 @@ export default function Admin() {
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [reviewsError, setReviewsError] = useState(null);
   const [togglingId, setTogglingId] = useState(null);
+  const [tierEvents, setTierEvents] = useState(null);
+  const [tiersLoading, setTiersLoading] = useState(false);
+  const [tiersError, setTiersError] = useState(null);
+  const [tierBusyId, setTierBusyId] = useState(null);
   const [flaggedUsers, setFlaggedUsers] = useState(null);
   const [flaggedLoading, setFlaggedLoading] = useState(false);
   const [flaggedError, setFlaggedError] = useState(null);
@@ -318,6 +410,26 @@ export default function Admin() {
     loadReviews();
   }, [isAdmin, tab, eventReviews, loadReviews]);
 
+  const loadTiers = useCallback(async () => {
+    setTiersLoading(true);
+    setTiersError(null);
+    try {
+      setTierEvents(await loadHackathonsForTierReview());
+    } catch (requestError) {
+      console.error("Could not load hackathons for tier review.", requestError);
+      setTierEvents([]);
+      setTiersError(requestError);
+    } finally {
+      setTiersLoading(false);
+    }
+  }, []);
+
+  // The Tiers tab loads on first open and after every approval.
+  useEffect(() => {
+    if (!isAdmin || tab !== "tiers" || tierEvents !== null) return;
+    loadTiers();
+  }, [isAdmin, tab, tierEvents, loadTiers]);
+
   const loadFlagged = useCallback(async () => {
     setFlaggedLoading(true);
     setFlaggedError(null);
@@ -339,14 +451,15 @@ export default function Admin() {
   }, [isAdmin, tab, flaggedUsers, loadFlagged]);
 
   const counts = useMemo(() => {
-    const totals = { pending: 0, approved: 0, rejected: 0, reviews: 0, flagged: 0 };
+    const totals = { pending: 0, approved: 0, rejected: 0, reviews: 0, tiers: 0, flagged: 0 };
     (organizations || []).forEach((organization) => {
       if (totals[organization.status] !== undefined) totals[organization.status] += 1;
     });
     totals.reviews = (eventReviews || []).length;
+    totals.tiers = (tierEvents || []).length;
     totals.flagged = (flaggedUsers || []).length;
     return totals;
-  }, [organizations, eventReviews, flaggedUsers]);
+  }, [organizations, eventReviews, tierEvents, flaggedUsers]);
 
   if (adminLoading) {
     return (
@@ -388,8 +501,34 @@ export default function Admin() {
     }
   };
 
+  // Approve with a tier, or reject. review_hackathon writes approval_status and
+  // approved_tier together and is admin-only, so a failure is reported, not assumed.
+  const decideHackathon = async (event, decision, tier) => {
+    setTierBusyId(event.id);
+    setMessage({ text: "", error: false });
+    try {
+      await reviewHackathon(event.id, decision, tier);
+      await loadTiers();
+      setMessage({
+        text:
+          decision === "approved"
+            ? `${event.title} is approved as ${tierLabel(tier)}.`
+            : `${event.title} was rejected and its approved tier was cleared.`,
+        error: false,
+      });
+    } catch (requestError) {
+      setMessage({
+        text: requestError.message || "The tier could not be saved. Please try again.",
+        error: true,
+      });
+    } finally {
+      setTierBusyId(null);
+    }
+  };
+
   const visible = (organizations || []).filter((organization) => organization.status === tab);
   const showingReviews = tab === "reviews";
+  const showingTiers = tab === "tiers";
   const showingFlagged = tab === "flagged";
 
   const toggleReview = async (reviewRow) => {
@@ -420,17 +559,23 @@ export default function Admin() {
       : flaggedError
         ? flaggedError.message || "Flagged users could not be loaded."
         : message.text
-    : showingReviews
-      ? reviewsLoading
-        ? "Loading reviews…"
-        : reviewsError
-          ? reviewsError.message || "The reviews could not be loaded."
+    : showingTiers
+      ? tiersLoading
+        ? "Loading tier claims…"
+        : tiersError
+          ? tiersError.message || "The tier claims could not be loaded."
           : message.text
-      : loading
-        ? "Loading organizations…"
-        : loadError
-          ? loadError.message || "The review queue could not be loaded."
-          : message.text;
+      : showingReviews
+        ? reviewsLoading
+          ? "Loading reviews…"
+          : reviewsError
+            ? reviewsError.message || "The reviews could not be loaded."
+            : message.text
+        : loading
+          ? "Loading organizations…"
+          : loadError
+            ? loadError.message || "The review queue could not be loaded."
+            : message.text;
 
   return (
     <>
@@ -440,23 +585,29 @@ export default function Admin() {
           eyebrow={
             showingFlagged
               ? "ADMIN · FLAGGED USERS"
-              : showingReviews
-                ? "ADMIN · EVENT REVIEWS"
-                : "ADMIN · ORGANIZATION REVIEW"
+              : showingTiers
+                ? "ADMIN · HACKATHON TIERS"
+                : showingReviews
+                  ? "ADMIN · EVENT REVIEWS"
+                  : "ADMIN · ORGANIZATION REVIEW"
           }
           title={
             showingFlagged
               ? "Members more than one person reported."
-              : showingReviews
-                ? "Moderate what participants write."
-                : "Approve organizers before they host."
+              : showingTiers
+                ? "Approve the tier an organizer claimed."
+                : showingReviews
+                  ? "Moderate what participants write."
+                  : "Approve organizers before they host."
           }
           description={
             showingFlagged
               ? "A member appears here only when two or more different people reported them, so a single report never flags anyone. Every reason and reporter is listed."
-              : showingReviews
-                ? "Hidden reviews disappear from every public page while their author and the admins can still see them."
-                : "Check the proof, the details and the signature. Approving unlocks hosting straight away; rejecting saves your reason for the organizer."
+              : showingTiers
+                ? "Organizers claim a tier on the host form. Only the tier you approve here is shown on the event."
+                : showingReviews
+                  ? "Hidden reviews disappear from every public page while their author and the admins can still see them."
+                  : "Check the proof, the details and the signature. Approving unlocks hosting straight away; rejecting saves your reason for the organizer."
           }
         />
 
@@ -496,6 +647,21 @@ export default function Admin() {
                 No one has been reported by two different people yet. A member is only flagged once
                 two different reporters have filed a report.
               </p>
+            )}
+          </div>
+        ) : showingTiers ? (
+          <div className="admin-list" aria-busy={tiersLoading}>
+            {tiersLoading && !tierEvents ? null : (tierEvents || []).length ? (
+              tierEvents.map((event) => (
+                <TierCard
+                  event={event}
+                  busy={tierBusyId === event.id}
+                  onDecide={decideHackathon}
+                  key={event.id}
+                />
+              ))
+            ) : (
+              <p className="dashboard-empty">{EMPTY_COPY.tiers}</p>
             )}
           </div>
         ) : showingReviews ? (

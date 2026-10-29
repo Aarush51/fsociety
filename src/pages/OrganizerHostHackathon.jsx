@@ -6,24 +6,24 @@ import PageTitle from "../components/PageTitle";
 import { useAuth } from "../context/AuthContext";
 import { useOrganization } from "../context/OrganizationContext";
 import useFormDraft from "../hooks/useFormDraft";
-import { createHackathon, validateHackathon } from "../lib/organizations";
+import { createHackathon, HACKATHON_TIERS, validateHackathon } from "../lib/organizations";
 
 const EMPTY_FORM = {
   title: "",
   description: "",
-  banner_url: "",
   theme_tags: "",
   venue_name: "",
   address: "",
   city: "",
-  maps_url: "",
   capacity: "",
   team_size_max: "4",
   price: "0",
   starts_at: "",
   ends_at: "",
-  rules: "",
-  prize_details: "",
+  claimed_tier: "",
+  tier_reason: "",
+  expected_participants: "",
+  prize_pool: "",
 };
 
 function Field({ label, hint, error, children }) {
@@ -80,6 +80,21 @@ export default function OrganizerHostHackathon() {
       return next;
     });
   };
+
+  // The tier buttons are not inputs, so they clear their own error.
+  const chooseTier = (tier) => {
+    setValues((current) => ({ ...current, claimed_tier: String(tier) }));
+    setErrors((current) => {
+      if (!current.claimed_tier) return current;
+      const next = { ...current };
+      delete next.claimed_tier;
+      return next;
+    });
+  };
+
+  const selectedTier = HACKATHON_TIERS.find(
+    (tier) => tier.value === Number(values.claimed_tier),
+  );
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -149,18 +164,6 @@ export default function OrganizerHostHackathon() {
             />
           </Field>
           <Field
-            label="Banner image URL"
-            hint="A public image link (https://…) used at the top of your event."
-            error={errors.banner_url}
-          >
-            <input
-              name="banner_url"
-              placeholder="https://images.example/banner.jpg"
-              value={values.banner_url}
-              onChange={update("banner_url")}
-            />
-          </Field>
-          <Field
             label="Theme tags"
             hint="Comma separated, up to 6 — for example: Climate Tech, Open Innovation."
           >
@@ -203,18 +206,6 @@ export default function OrganizerHostHackathon() {
                 value={values.city}
                 onChange={update("city")}
                 required
-              />
-            </Field>
-            <Field
-              label="Google Maps link"
-              hint="Paste the share link so participants can tap Get directions."
-              error={errors.maps_url}
-            >
-              <input
-                name="maps_url"
-                placeholder="https://maps.app.goo.gl/…"
-                value={values.maps_url}
-                onChange={update("maps_url")}
               />
             </Field>
           </div>
@@ -287,23 +278,75 @@ export default function OrganizerHostHackathon() {
           </div>
 
           <div className="org-form-section">
-            <p className="eyebrow">WHAT PARTICIPANTS SHOULD KNOW</p>
-            <Field label="Rules" hint="Code of conduct, what to bring, judging rules.">
+            <p className="eyebrow">WHICH TIER IS YOUR HACKATHON?</p>
+            <div className="filter-list" role="group" aria-label="Which tier is your hackathon?">
+              {HACKATHON_TIERS.map((tier) => (
+                <button
+                  className={
+                    Number(values.claimed_tier) === tier.value ? "filter-active" : "skill"
+                  }
+                  type="button"
+                  aria-pressed={Number(values.claimed_tier) === tier.value}
+                  key={tier.value}
+                  onClick={() => chooseTier(tier.value)}
+                >
+                  {tier.label}
+                </button>
+              ))}
+            </div>
+            {selectedTier ? (
+              <span className="org-field-hint">{selectedTier.example}</span>
+            ) : null}
+            {errors.claimed_tier ? (
+              <span className="org-field-error" role="alert">
+                {errors.claimed_tier}
+              </span>
+            ) : null}
+            <Field
+              label="Reason for this tier (required)"
+              hint="An admin reviews this before the tier is shown on your event."
+              error={errors.tier_reason}
+            >
               <textarea
-                name="rules"
-                rows="4"
-                placeholder="Teams of up to 4. Bring your own laptop and charger."
-                value={values.rules}
-                onChange={update("rules")}
+                name="tier_reason"
+                rows="3"
+                maxLength="1000"
+                placeholder="180 colleges, a ₹5,00,000 prize pool and four national sponsors — the reach is national."
+                value={values.tier_reason}
+                onChange={update("tier_reason")}
+                required
               />
             </Field>
-            <Field label="Prize details" hint="Prize pool, categories and any goodies.">
-              <textarea
-                name="prize_details"
-                rows="3"
-                placeholder="₹50,000 pool — ₹25,000 winner, ₹15,000 runner-up, ₹10,000 best beginner team."
-                value={values.prize_details}
-                onChange={update("prize_details")}
+            <Field
+              label="Expected participants"
+              hint="How many people you expect to take part."
+              error={errors.expected_participants}
+            >
+              <input
+                name="expected_participants"
+                type="number"
+                min="1"
+                step="1"
+                placeholder="180"
+                value={values.expected_participants}
+                onChange={update("expected_participants")}
+                required
+              />
+            </Field>
+            <Field
+              label="Prize pool (rupees)"
+              hint="Total prize money — leave 0 if there is no cash prize."
+              error={errors.prize_pool}
+            >
+              <input
+                name="prize_pool"
+                type="number"
+                min="0"
+                step="1"
+                placeholder="50000"
+                value={values.prize_pool}
+                onChange={update("prize_pool")}
+                required
               />
             </Field>
           </div>

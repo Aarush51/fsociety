@@ -3,7 +3,8 @@ import { NavLink } from "react-router-dom";
 const organizerLinks = [
   { label: "My Events", to: "/organizer" },
   { label: "Host New Hackathon", to: "/organizer/host" },
-  { label: "Organizer Profile", to: "/profile" },
+  // Stays inside the /organizer workspace so the sidebar layout keeps rendering.
+  { label: "Organizer Profile", to: "/organizer/profile" },
   { label: "Registrations", to: "/organizer/registrations" },
 ];
 

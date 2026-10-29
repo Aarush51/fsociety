@@ -104,6 +104,18 @@ export default function App() {
                       </ProtectedRoute>
                     }
                   />
+                  {/* Organizer Profile lives under /organizer/ so the sidebar layout
+                      from Layout.jsx (which keys off the /organizer prefix) stays put. */}
+                  <Route
+                    path="organizer/profile"
+                    element={
+                      <ProtectedRoute>
+                        <OrganizerRoute>
+                          <Profile />
+                        </OrganizerRoute>
+                      </ProtectedRoute>
+                    }
+                  />
                   <Route
                     path="organizer/host"
                     element={
