@@ -78,6 +78,78 @@ export async function reviewOrganization(id, { status, reviewNote = null }) {
   return data[0];
 }
 
+// ---------------------------------------------------------------------------
+// Hackathon tiers
+// ---------------------------------------------------------------------------
+// An organizer only claims a tier. These calls are the only way a tier becomes
+// "approved": public.protect_hackathon_tier() rejects an approved_tier written
+// by anyone who is not an admin, so an empty result here means it did not happen.
+
+export const TIER_REVIEW_FIELDS =
+  "id, slug, title, organizer, city, starts_at, status, claimed_tier, approved_tier, tier_reason, expected_participants, prize_pool, created_at";
+
+// Every hackathon that has claimed a tier, newest first.
+export async function loadHackathonsForTierReview() {
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { data, error } = await supabase
+    .from("hackathons")
+    .select(TIER_REVIEW_FIELDS)
+    .not("claimed_tier", "is", null)
+    .order("created_at", { ascending: false });
+  if (error) {
+    if (error.code === "42501") {
+      throw new Error(
+        "Only admins can read hackathons for tier review. Check that the admin SQL migration has been run in Supabase.",
+      );
+    }
+    if (error.code === "42703") {
+      throw new Error(
+        "Hackathon tiers are not available yet: run supabase/migrations/20261029120000_add_hackathon_tiers.sql in Supabase first.",
+      );
+    }
+    throw error;
+  }
+  return data || [];
+}
+
+// Approve Tier 1/2/3, or pass null to clear the approval.
+export async function setHackathonApprovedTier(hackathonId, tier) {
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const value = tier === null || tier === undefined || tier === "" ? null : Number(tier);
+  if (value !== null && ![1, 2, 3].includes(value)) {
+    throw new Error("Choose Tier 1, Tier 2, Tier 3, or clear the approval.");
+  }
+
+  const { data, error } = await supabase
+    .from("hackathons")
+    .update({ approved_tier: value })
+    .eq("id", hackathonId)
+    .select(TIER_REVIEW_FIELDS);
+
+  if (error) {
+    if (error.code === "42501") {
+      throw new Error(
+        "Your account is not allowed to approve a tier. Run the hackathon tiers migration and check your row in public.admins.",
+      );
+    }
+    if (error.code === "42703") {
+      throw new Error(
+        "Hackathon tiers are not available yet: run supabase/migrations/20261029120000_add_hackathon_tiers.sql in Supabase first.",
+      );
+    }
+    if (error.code === "23514") {
+      throw new Error(`That tier was rejected by the database: ${error.message}`);
+    }
+    throw new Error(error.message || "The tier could not be saved. Please try again.");
+  }
+  if (!data || !data.length) {
+    throw new Error(
+      "The tier was not saved: the database blocked the update. Only an admin can set an approved tier.",
+    );
+  }
+  return data[0];
+}
+
 // Every event review, hidden ones included, newest first. RLS returns an empty
 // list for non-admins and the function itself checks public.is_admin().
 export async function loadEventReviewsForModeration() {

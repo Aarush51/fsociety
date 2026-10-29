@@ -226,6 +226,37 @@ export async function createOrganization(ownerId, values) {
 }
 
 // ---------------------------------------------------------------------------
+// Hackathon tiers
+// ---------------------------------------------------------------------------
+// An organizer only ever CLAIMS a tier; approved_tier is written by an admin
+// (enforced in SQL by public.protect_hackathon_tier) and is the only tier the
+// app displays to anyone else.
+
+export const HACKATHON_TIERS = [
+  {
+    value: 1,
+    label: "Tier 1",
+    example: "National or global flagship event with large prizes and sponsors.",
+  },
+  {
+    value: 2,
+    label: "Tier 2",
+    example: "City or university-level event with a solid prize pool.",
+  },
+  {
+    value: 3,
+    label: "Tier 3",
+    example: "Small local, club or community event.",
+  },
+];
+
+// "Tier 2" for 2, and "" when nothing (or an unexpected value) is stored.
+export function tierLabel(value) {
+  const tier = HACKATHON_TIERS.find((item) => item.value === Number(value));
+  return tier ? tier.label : "";
+}
+
+// ---------------------------------------------------------------------------
 // Organizer hackathons
 // ---------------------------------------------------------------------------
 
@@ -317,13 +348,6 @@ export function validateHackathon(values) {
   if (!values.address.trim()) errors.address = "Add the full address so people can find the venue.";
   if (!values.city.trim()) errors.city = "Add the city.";
 
-  if (values.maps_url.trim() && !isHttpUrl(withHttps(values.maps_url))) {
-    errors.maps_url = "Paste a Google Maps link that starts with http:// or https://.";
-  }
-  if (values.banner_url.trim() && !isHttpUrl(withHttps(values.banner_url))) {
-    errors.banner_url = "Paste an image link that starts with http:// or https://.";
-  }
-
   const capacity = Number(values.capacity);
   if (!values.capacity.trim() || !Number.isInteger(capacity) || capacity < 1) {
     errors.capacity = "Enter how many people the venue can hold (a whole number).";
@@ -347,6 +371,35 @@ export function validateHackathon(values) {
     errors.ends_at = "The end time has to be after the start time.";
   }
 
+  // Tier claim. The approved tier is never set from the browser.
+  const claimedTier = Number(values.claimed_tier);
+  if (!HACKATHON_TIERS.some((tier) => tier.value === claimedTier)) {
+    errors.claimed_tier = "Choose the tier your hackathon belongs to.";
+  }
+
+  const tierReason = String(values.tier_reason ?? "").trim();
+  if (tierReason.length < 20) {
+    errors.tier_reason = "Explain in at least 20 characters why this tier fits your hackathon.";
+  } else if (tierReason.length > 1000) {
+    errors.tier_reason = "Keep the reason under 1000 characters.";
+  }
+
+  const expectedParticipants = Number(values.expected_participants);
+  if (
+    !String(values.expected_participants ?? "").trim() ||
+    !Number.isInteger(expectedParticipants) ||
+    expectedParticipants < 1
+  ) {
+    errors.expected_participants = "Enter how many participants you expect (a whole number).";
+  } else if (expectedParticipants > 100000) {
+    errors.expected_participants = "Enter a number of expected participants below 100000.";
+  }
+
+  const prizePool = values.prize_pool === "" ? 0 : Number(values.prize_pool);
+  if (Number.isNaN(prizePool) || prizePool < 0) {
+    errors.prize_pool = "Enter the prize pool in rupees, or 0 for no cash prize.";
+  }
+
   return { valid: Object.keys(errors).length === 0, errors };
 }
 
@@ -355,9 +408,9 @@ export async function createHackathon({ organization, user, values }) {
   const themes = parseThemeTags(values.theme_tags);
   const venue = values.venue_name.trim();
   const city = values.city.trim();
-  const prizeDetails = values.prize_details.trim();
   const teamSizeMax = Math.min(Math.max(Number(values.team_size_max) || 4, 2), 6);
   const price = values.price.trim() === "" ? 0 : Number(values.price);
+  const prizePool = values.prize_pool === "" ? 0 : Number(values.prize_pool);
   const payload = {
       slug: slugFromTitle(values.title),
       title: values.title.trim(),
@@ -365,8 +418,8 @@ export async function createHackathon({ organization, user, values }) {
       category: themes[0] || "Hackathon",
       organizer: organization.org_name,
       location: `${venue}, ${city}`,
-      // The public card shows a short prize pool; the full text lives in prize_details.
-      prize: prizeDetails ? prizeDetails.slice(0, 190) : null,
+      // The public card shows a short prize pool; the number lives in prize_pool.
+      prize: prizePool > 0 ? `₹${new Intl.NumberFormat("en-IN").format(prizePool)}` : "No cash prize",
       registration_deadline: new Date(values.starts_at).toISOString(),
       starts_at: new Date(values.starts_at).toISOString(),
       ends_at: new Date(values.ends_at).toISOString(),
@@ -377,14 +430,16 @@ export async function createHackathon({ organization, user, values }) {
       venue_name: venue,
       address: values.address.trim(),
       city,
-      maps_url: values.maps_url.trim() ? withHttps(values.maps_url) : null,
       capacity: Number(values.capacity),
       team_size_max: teamSizeMax,
       price,
-      banner_url: values.banner_url.trim() ? withHttps(values.banner_url) : null,
       theme_tags: themes,
-      rules: values.rules.trim() || null,
-      prize_details: prizeDetails || null,
+      // The organizer's claim only. approved_tier is intentionally absent: the
+      // database forces it to null on insert and only an admin can change it.
+      claimed_tier: Number(values.claimed_tier),
+      tier_reason: values.tier_reason.trim(),
+      expected_participants: Number(values.expected_participants),
+      prize_pool: prizePool,
   };
 
   // team_size_max arrives with the team formation migration. If this project
@@ -413,6 +468,16 @@ export async function createHackathon({ organization, user, values }) {
         }
         if (error.code === "23502") {
           throw new Error(`A required field was missing: ${error.message}.`);
+        }
+        if (
+          error.code === "42703" &&
+          /claimed_tier|tier_reason|expected_participants|prize_pool|team_size_max/.test(
+            error.message || "",
+          )
+        ) {
+          throw new Error(
+            "The hackathon tier migration has not been applied in Supabase yet, so the tier details could not be saved. Ask an admin to run supabase/migrations/20261029120000_add_hackathon_tiers.sql, then try again.",
+          );
         }
         throw new Error(error.message || "Your hackathon could not be saved. Please try again.");
   }

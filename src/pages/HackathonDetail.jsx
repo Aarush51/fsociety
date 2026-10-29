@@ -6,12 +6,13 @@ import EventReviews from "../components/EventReviews";
 import RegistrationCTA from "../components/RegistrationCTA";
 import { events } from "../lib/demoData";
 import { formatEventDate, formatPrice, hackathonCardData } from "../lib/format";
+import { tierLabel } from "../lib/organizations";
 import { supabase } from "../lib/supabase";
 
 // team_size_max is intentionally absent: the column only exists after the team
 // formation migration, and requesting a missing column fails the whole query.
 const DETAIL_FIELDS =
-  "id, slug, title, organizer, description, category, location, prize, registration_deadline, starts_at, ends_at, status, organization_id, venue_name, address, city, maps_url, capacity, price, rules, prize_details";
+  "id, slug, title, organizer, description, category, location, prize, registration_deadline, starts_at, ends_at, status, organization_id, venue_name, address, city, maps_url, capacity, price, rules, prize_details, approved_tier";
 
 function SampleDetail({ event }) {
   return (
@@ -77,6 +78,8 @@ function DatabaseDetail({ hackathon }) {
   const dates = `${formatEventDate(hackathon.starts_at)} – ${formatEventDate(hackathon.ends_at)}`;
   const venue = [hackathon.venue_name, hackathon.city].filter(Boolean).join(", ");
   const address = hackathon.address || "";
+  // Only the admin-approved tier is ever shown; a pending claim stays private.
+  const approvedTier = tierLabel(hackathon.approved_tier);
   const price = formatPrice(hackathon.price) || "Free";
   // Prefer the organizer's Maps link; without one, search Google Maps for the venue address.
   const mapQuery = [hackathon.venue_name, address, hackathon.city].filter(Boolean).join(", ");
@@ -150,6 +153,12 @@ function DatabaseDetail({ hackathon }) {
             <dt>Prize pool</dt>
             <dd>{event.prize}</dd>
           </div>
+          {approvedTier ? (
+            <div>
+              <dt>Tier</dt>
+              <dd>{approvedTier}</dd>
+            </div>
+          ) : null}
           <div>
             <dt>Registration closes</dt>
             <dd>{event.deadline || "Not specified"}</dd>
