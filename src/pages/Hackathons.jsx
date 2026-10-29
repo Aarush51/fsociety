@@ -5,10 +5,11 @@ import PageTitle from "../components/PageTitle";
 import { demoHackathons } from "../lib/demoData";
 import useHackathonRatings from "../hooks/useHackathonRatings";
 import { hackathonCardData } from "../lib/format";
+import { groupHackathonsByTier, tierLabel } from "../lib/organizations";
 import { supabase } from "../lib/supabase";
 
 const HACKATHON_FIELDS =
-  "id, slug, title, organizer, description, category, location, prize, registration_deadline, starts_at, ends_at, status, venue_name, city, maps_url, capacity, price";
+  "id, slug, title, organizer, description, category, location, prize, registration_deadline, starts_at, ends_at, status, approval_status, approved_tier, venue_name, city, maps_url, capacity, price";
 
 export default function Hackathons() {
   const [rows, setRows] = useState(null);
@@ -36,6 +37,7 @@ export default function Hackathons() {
       .from("hackathons")
       .select(HACKATHON_FIELDS)
       .in("status", ["upcoming", "active"])
+      .eq("approval_status", "approved")
       .then(({ data, error }) => {
         if (!active) return;
         if (error) throw error;
@@ -97,6 +99,9 @@ export default function Hackathons() {
         return direction * (firstDeadline - secondDeadline);
       });
   }, [rows, search, selectedTheme, sortDirection]);
+
+  // One bucket per approved tier, then "More hackathons".
+  const sections = useMemo(() => groupHackathonsByTier(filtered), [filtered]);
 
   const ratings = useHackathonRatings(filtered);
 
@@ -175,13 +180,39 @@ export default function Hackathons() {
             </>
           ) : null}
         </p>
-        <div id="hackathon-results" className="event-grid" aria-busy={loading}>
-          {filtered.map((event) => (
-            <EventCard
-              event={{ ...hackathonCardData(event), rating: ratings[event.id] }}
-              key={event.id}
-            />
-          ))}
+        <div id="hackathon-results" aria-busy={loading}>
+          {sections.map((section) =>
+            section.events.length ? (
+              <section
+                className="dashboard-data-section"
+                aria-label={`${section.title} section`}
+                key={section.key}
+              >
+                <div className="section-heading dashboard-heading">
+                  <div>
+                    <p className="eyebrow">{section.eyebrow}</p>
+                    <h2>{section.title}</h2>
+                  </div>
+                  <p className="muted small">
+                    {section.events.length}{" "}
+                    {section.events.length === 1 ? "hackathon" : "hackathons"} · {section.description}
+                  </p>
+                </div>
+                <div className="event-grid">
+                  {section.events.map((event) => (
+                    <EventCard
+                      event={{
+                        ...hackathonCardData(event),
+                        tier: tierLabel(event.approved_tier),
+                        rating: ratings[event.id],
+                      }}
+                      key={event.id}
+                    />
+                  ))}
+                </div>
+              </section>
+            ) : null,
+          )}
         </div>
         <div className="dark-callout">
           <div>

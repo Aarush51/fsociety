@@ -256,6 +256,27 @@ export function tierLabel(value) {
   return tier ? tier.label : "";
 }
 
+// The Discover page shows one section per approved tier, then everything else.
+export const DISCOVER_SECTIONS = [
+  { key: "tier-1", tier: 1, eyebrow: "FLAGSHIP", title: "Tier 1", description: "National or global flagship events." },
+  { key: "tier-2", tier: 2, eyebrow: "REGIONAL", title: "Tier 2", description: "City and university-level events." },
+  { key: "tier-3", tier: 3, eyebrow: "COMMUNITY", title: "Tier 3", description: "Local, club and community events." },
+  { key: "more", tier: null, eyebrow: "DISCOVER", title: "More hackathons", description: "Events without an approved tier yet." },
+];
+
+// Groups events by the tier an admin approved. Only approved_tier counts: an
+// unapproved claim still lands in "More hackathons", and so does anything with
+// an unexpected value. Order is Tier 1 → Tier 3 → More.
+export function groupHackathonsByTier(events = []) {
+  const buckets = DISCOVER_SECTIONS.map((section) => ({ ...section, events: [] }));
+  (events || []).forEach((event) => {
+    const approved = Number(event?.approved_tier);
+    const index = [1, 2, 3].includes(approved) ? approved - 1 : buckets.length - 1;
+    buckets[index].events.push(event);
+  });
+  return buckets;
+}
+
 // ---------------------------------------------------------------------------
 // Organizer hackathons
 // ---------------------------------------------------------------------------

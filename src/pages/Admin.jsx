@@ -9,9 +9,9 @@ import {
   loadEventReviewsForModeration,
   loadHackathonsForTierReview,
   loadOrganizationsForReview,
+  reviewHackathon,
   reviewOrganization,
   setEventReviewHidden,
-  setHackathonApprovedTier,
 } from "../lib/admin";
 import { formatEventDate, formatNumber } from "../lib/format";
 import { HACKATHON_TIERS, organizationTypeLabel, tierLabel } from "../lib/organizations";
@@ -80,12 +80,22 @@ function ReviewCard({ review, busy, onToggle }) {
   );
 }
 
-function TierCard({ event, busy, onSetTier }) {
+function TierCard({ event, busy, onDecide }) {
   const approved = Number(event.approved_tier) || null;
+  const claimed = Number(event.claimed_tier) || null;
+  // The picker starts on the organizer's claim; the admin can move it.
+  const [tier, setTier] = useState(claimed || 3);
   const prizePool =
     event.prize_pool === null || event.prize_pool === undefined
       ? "—"
       : `₹${formatNumber(event.prize_pool)}`;
+  const status = event.approval_status || "pending";
+  const badgeClass =
+    status === "approved"
+      ? "admin-badge-approved"
+      : status === "rejected"
+        ? "admin-badge-rejected"
+        : "admin-badge-pending";
   return (
     <article className="admin-card">
       <header className="admin-card-head">
@@ -96,45 +106,59 @@ function TierCard({ event, busy, onSetTier }) {
           </p>
           <h2>{event.title}</h2>
         </div>
-        <span
-          className={`admin-badge ${approved ? "admin-badge-approved" : "admin-badge-pending"}`}
-        >
-          {approved ? `approved ${tierLabel(approved)}` : "tier not approved"}
-        </span>
+        <span className={`admin-badge ${badgeClass}`}>{
+          approved ? `${status} · ${tierLabel(approved)}` : status
+        }</span>
       </header>
 
       <dl className="admin-facts">
-        <Fact label="Claimed tier">{tierLabel(event.claimed_tier) || "Not claimed"}</Fact>
+        <Fact label="Claimed tier">{tierLabel(claimed) || "Not claimed"}</Fact>
         <Fact label="Approved tier">{approved ? tierLabel(approved) : "—"}</Fact>
         <Fact label="Expected participants">{event.expected_participants ?? "—"}</Fact>
         <Fact label="Prize pool">{prizePool}</Fact>
       </dl>
 
-      <p className="admin-description">{event.tier_reason || "No reason given."}</p>
+      <p className="admin-description">
+        <strong>Reason for claimed tier:</strong> {event.tier_reason || "No reason given."}
+      </p>
 
-      <div className="admin-actions">
-        {HACKATHON_TIERS.map((tier) => (
+      <div className="filter-list" role="group" aria-label={`Approve ${event.title} as`}>
+        {HACKATHON_TIERS.map((option) => (
           <button
-            className={`button ${approved === tier.value ? "button-dark" : "button-outline"}`}
+            className={tier === option.value ? "filter-active" : "skill"}
             type="button"
             disabled={busy}
-            aria-pressed={approved === tier.value}
-            key={tier.value}
-            onClick={() => onSetTier(event, tier.value)}
+            aria-pressed={tier === option.value}
+            key={option.value}
+            onClick={() => setTier(option.value)}
           >
-            {tier.label}
+            {option.label}
           </button>
         ))}
-        {approved ? (
-          <button
-            className="text-link"
-            type="button"
-            disabled={busy}
-            onClick={() => onSetTier(event, null)}
-          >
-            Clear approval
-          </button>
-        ) : null}
+      </div>
+      <span className="org-field-hint">
+        {claimed
+          ? `Defaults to the organizer's claim (${tierLabel(claimed)}). Pick the tier you are approving.`
+          : "The organizer claimed no tier. Pick the tier you are approving."}
+      </span>
+
+      <div className="admin-actions">
+        <button
+          className="button button-dark"
+          type="button"
+          disabled={busy}
+          onClick={() => onDecide(event, "approved", tier)}
+        >
+          {busy ? "Saving…" : `Approve as ${tierLabel(tier)}`}
+        </button>
+        <button
+          className="button button-outline"
+          type="button"
+          disabled={busy}
+          onClick={() => onDecide(event, "rejected", null)}
+        >
+          Reject
+        </button>
       </div>
     </article>
   );
@@ -406,18 +430,19 @@ export default function Admin() {
     }
   };
 
-  // Approve a claimed tier (or clear it with null). Only an admin passes the
-  // database guard, so a failure is reported instead of assumed.
-  const approveTier = async (event, tier) => {
+  // Approve with a tier, or reject. review_hackathon writes approval_status and
+  // approved_tier together and is admin-only, so a failure is reported, not assumed.
+  const decideHackathon = async (event, decision, tier) => {
     setTierBusyId(event.id);
     setMessage({ text: "", error: false });
     try {
-      await setHackathonApprovedTier(event.id, tier);
+      await reviewHackathon(event.id, decision, tier);
       await loadTiers();
       setMessage({
-        text: tier
-          ? `${event.title} is now approved as ${tierLabel(tier)}.`
-          : `${event.title} has no approved tier any more.`,
+        text:
+          decision === "approved"
+            ? `${event.title} is approved as ${tierLabel(tier)}.`
+            : `${event.title} was rejected and its approved tier was cleared.`,
         error: false,
       });
     } catch (requestError) {
@@ -534,7 +559,7 @@ export default function Admin() {
                 <TierCard
                   event={event}
                   busy={tierBusyId === event.id}
-                  onSetTier={approveTier}
+                  onDecide={decideHackathon}
                   key={event.id}
                 />
               ))
