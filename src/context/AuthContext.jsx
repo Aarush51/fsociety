@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { clearAllFormDrafts } from "../hooks/useFormDraft";
 import { isSupabaseConfigured, supabase, supabaseSetupMessage } from "../lib/supabase";
 
 const AuthContext = createContext(null);
@@ -56,7 +57,10 @@ export function AuthProvider({ children }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      // Signing out (or a session expiring) takes every saved form draft with it,
+      // so a half-filled organizer or profile form never greets the next person.
+      if (event === "SIGNED_OUT") clearAllFormDrafts();
       setSession(nextSession);
       setLoading(false);
     });
@@ -106,6 +110,7 @@ export function AuthProvider({ children }) {
     if (!supabase) throw new Error(supabaseSetupMessage);
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
+    clearAllFormDrafts();
     setMode(null);
     writeStoredMode(null);
   }, []);

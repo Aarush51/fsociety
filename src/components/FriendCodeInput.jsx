@@ -65,7 +65,7 @@ export default function FriendCodeInput({
       const { data, error } = await supabase.rpc("find_user_by_code", { p_code: digits });
       if (error) throw error;
       if (!data) {
-        setMessage({ text: `No HackMate member has the ID ${digits}.`, error: true });
+        setMessage({ text: "No user found", error: true });
         return;
       }
       if (data.id === user.id) {
@@ -144,7 +144,7 @@ export default function FriendCodeInput({
           <div className="friend-code-found-person">
             <span className="avatar avatar-small blue">{initialsFromName(found.full_name)}</span>
             <div>
-              <strong>Found: {shortName(found.full_name)}</strong>
+              <strong>Found: {String(found.full_name || "").trim().split(/\s+/)[0]}</strong>
               <span className="muted tiny">{found.friend_code}</span>
             </div>
           </div>

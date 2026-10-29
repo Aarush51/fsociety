@@ -27,7 +27,7 @@ export function headerLinks({ signedIn, mode, hasOrganization, isAdmin }) {
       { label: "Host a hackathon", to: "/organizer/host" },
       { label: "My organization", to: "/organizer" },
       { label: "Idea generator", to: "/ideas" },
-      { label: "Profile", to: "/profile" },
+      { label: "The Huddle", to: "/huddle" },
     ];
   } else {
     links = [
@@ -36,7 +36,7 @@ export function headerLinks({ signedIn, mode, hasOrganization, isAdmin }) {
       { label: "Leaderboard", to: "/leaderboard" },
       { label: "My teams", to: "/teams" },
       { label: "Dashboard", to: "/dashboard" },
-      { label: "Profile", to: "/profile" },
+      { label: "The Huddle", to: "/huddle" },
     ];
   }
 

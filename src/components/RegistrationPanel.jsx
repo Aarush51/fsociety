@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import DraftRestoredNote from "./DraftRestoredNote";
 import FriendCodeInput from "./FriendCodeInput";
 import HackathonTeamPanel from "./HackathonTeamPanel";
 import { Arrow } from "./Icons";
 import { useAuth } from "../context/AuthContext";
 import { useOrganization } from "../context/OrganizationContext";
+import useFormDraft from "../hooks/useFormDraft";
+import { listFriends } from "../lib/friends";
 import { formatPrice, shortName } from "../lib/format";
 import { countProfileSkills, fetchMyProfileExtras } from "../lib/profiles";
 import {
@@ -31,12 +34,26 @@ export default function RegistrationPanel({ hackathon, slug }) {
   const [message, setMessage] = useState({ text: "", error: false });
   const [submitting, setSubmitting] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [step, setStep] = useState(0);
-  const [size, setSize] = useState(null);
-  const [useFriends, setUseFriends] = useState(false);
-  const [useMatching, setUseMatching] = useState(false);
-  const [friends, setFriends] = useState([]);
+  // The team flow is a form like any other: the chosen size, how the team gets
+  // filled, the friends added and the current step all survive a refresh.
+  const [draft, setDraft, clearDraft, draftRestored] = useFormDraft(
+    `registration-team.${hackathon?.id ?? "unknown"}.${user?.id ?? "anonymous"}`,
+    { step: 0, size: null, useFriends: false, useMatching: false, friends: [] },
+  );
+  const { step, size, useFriends, useMatching, friends } = draft;
+  const setDraftField = (field) => (value) =>
+    setDraft((current) => ({
+      ...current,
+      [field]: typeof value === "function" ? value(current[field]) : value,
+    }));
+  const setStep = setDraftField("step");
+  const setSize = setDraftField("size");
+  const setUseFriends = setDraftField("useFriends");
+  const setUseMatching = setDraftField("useMatching");
+  const setFriends = setDraftField("friends");
   const [skillCount, setSkillCount] = useState(null);
+  // "Pick from friends": one click adds a friend instead of retyping their ID.
+  const [friendPicker, setFriendPicker] = useState({ loading: false, error: "", friends: [] });
 
   const hackathonId = hackathon?.id;
   // The RPC returns the authoritative price, capacity and team size; fall back
@@ -52,6 +69,29 @@ export default function RegistrationPanel({ hackathon, slug }) {
   const invites = (teamState?.invites_for_me || []).filter((invite) => invite.status === "pending");
   const hasTeam = Boolean(teamState?.team);
   const matchingSpots = useMatching && size ? Math.max(size - 1 - friends.length, 0) : 0;
+
+  useEffect(() => {
+    if (!user || step !== 3 || !useFriends) return undefined;
+    let active = true;
+    setFriendPicker({ loading: true, error: "", friends: [] });
+    listFriends()
+      .then((rows) => {
+        if (active) setFriendPicker({ loading: false, error: "", friends: rows });
+      })
+      .catch((requestError) => {
+        console.error("Could not load your friends.", requestError);
+        if (active) {
+          setFriendPicker({
+            loading: false,
+            error: requestError.message || "Your friends could not be loaded.",
+            friends: [],
+          });
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [user, step, useFriends]);
 
   const loadInfo = useCallback(async () => {
     if (!hackathonId) return;
@@ -115,11 +155,8 @@ export default function RegistrationPanel({ hackathon, slug }) {
   }, [step, useMatching, skillCount]);
 
   const resetFlow = () => {
-    setStep(0);
-    setSize(null);
-    setUseFriends(false);
-    setUseMatching(false);
-    setFriends([]);
+    // Clears the saved draft and puts the flow back at its first step.
+    clearDraft();
     setMessage({ text: "", error: false });
   };
 
@@ -310,6 +347,7 @@ export default function RegistrationPanel({ hackathon, slug }) {
         </button>
       ) : (
         <div className="registration-flow">
+          {draftRestored ? <DraftRestoredNote onStartOver={resetFlow} /> : null}
           {step === 0 ? (
             <button
               className="button button-dark button-full"
@@ -416,6 +454,36 @@ export default function RegistrationPanel({ hackathon, slug }) {
                     onConfirm={handleFriendAdded}
                     disabled={submitting}
                   />
+                  {friendPicker.loading ? (
+                    <p className="muted tiny">Loading your friends…</p>
+                  ) : null}
+                  {friendPicker.error ? (
+                    <p className="muted tiny">
+                      {friendPicker.error} You can still add a friend by their six-digit ID above.
+                    </p>
+                  ) : null}
+                  {friendPicker.friends.length ? (
+                    <div>
+                      <p className="eyebrow">PICK FROM FRIENDS</p>
+                      <div className="filter-list" role="group" aria-label="Pick from friends">
+                        {friendPicker.friends.map((friend) => {
+                          const added = friends.some((member) => member.id === friend.id);
+                          return (
+                            <button
+                              key={friend.id}
+                              className={`${added ? "filter-active" : "skill"} hackathon-theme`}
+                              type="button"
+                              aria-pressed={added}
+                              disabled={added || submitting}
+                              onClick={() => handleFriendAdded(friend)}
+                            >
+                              {added ? `${shortName(friend.full_name)} · added` : `+ ${shortName(friend.full_name)}`}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
                   {friends.length ? (
                     <div className="dashboard-item-list">
                       {friends.map((friend) => (

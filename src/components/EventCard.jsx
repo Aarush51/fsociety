@@ -1,5 +1,7 @@
 import { Link } from "react-router-dom";
 import { Arrow } from "./Icons";
+import StarRating from "./StarRating";
+import { formatRatingSummary, hasReviews } from "../lib/reviews";
 
 export default function EventCard({ event }) {
   return (
@@ -36,6 +38,12 @@ export default function EventCard({ event }) {
             ) : null}
           </div>
         </div>
+        {hasReviews(event.rating) ? (
+          <div className="event-rating">
+            <StarRating value={event.rating.average} />
+            <span className="muted tiny">{formatRatingSummary(event.rating)}</span>
+          </div>
+        ) : null}
         <Link
           className="button button-outline button-full"
           to={`/hackathons/${encodeURIComponent(event.id)}`}

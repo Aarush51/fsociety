@@ -52,6 +52,8 @@ export function hackathonCardData(hackathon) {
   const city = hackathon.city || "";
   return {
     id: hackathon.slug,
+    // The uuid stays available for lookups (ratings are keyed by id).
+    uuid: hackathon.id,
     category: category.toUpperCase(),
     title: hackathon.title,
     organizer: hackathon.organizer || "Community organizer",
@@ -93,7 +95,16 @@ export function safeRedirectTarget(target) {
   if (destination.origin !== window.location.origin) return null;
   const targetParts = destination.pathname.split("/").filter(Boolean);
   return targetParts.some((part) =>
-    ["dashboard", "profile", "teams", "ideas", "organizer", "organization", "hackathons"].includes(
+    [
+      "dashboard",
+      "profile",
+      "huddle",
+      "teams",
+      "ideas",
+      "organizer",
+      "organization",
+      "hackathons",
+    ].includes(
       part,
     ),
   )
