@@ -63,8 +63,8 @@ export default function FriendCodeInput({
     setChecking(true);
     setMessage({ text: "Checking that ID…", error: false });
     try {
-      const { data, error } = await supabase.rpc("find_user_by_code", { p_code: digits });
-      if (error) throw error;
+     const { data: rawData, error } = await supabase.rpc("find_user_by_code", { p_code: digits });
+      const data = Array.isArray(rawData) ? rawData[0] : rawData;
       if (!data) {
         setMessage({ text: "No user found", error: true });
         return;
