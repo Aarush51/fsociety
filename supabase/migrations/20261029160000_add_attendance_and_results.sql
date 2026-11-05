@@ -90,10 +90,7 @@ create table if not exists public.results (
   updated_at timestamptz not null default now(),
   constraint results_hackathon_user_key unique (hackathon_id, user_id),
   constraint results_place_check check (place is null or place between 1 and 10),
-  constraint results_kind_check check (
-    (place is not null and honourable_mention = false)
-    or (place is null and honourable_mention = true)
-  )
+  constraint results_kind_check check (not (place is not null and honourable_mention))
 );
 
 create index if not exists results_hackathon_id_idx
@@ -121,7 +118,7 @@ drop policy if exists "Anyone can read published results" on public.results;
 create policy "Anyone can read published results"
   on public.results for select
   to anon, authenticated
-  using (published);
+  using (published and (place is not null or honourable_mention));
 
 drop policy if exists "Organizers can read their hackathon results" on public.results;
 create policy "Organizers can read their hackathon results"
