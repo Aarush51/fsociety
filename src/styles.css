@@ -1203,12 +1203,20 @@ html[data-theme="dark"] .closing-cta .eyebrow { color: #505a32; }
 .results-slot .eyebrow { font-size: 8px; }
 .results-slot select { width: 100%; min-height: 42px; padding: 9px 11px; border: 1px solid rgba(26,33,62,.12); border-radius: 11px; background: #fff; color: var(--foreground); font: inherit; font-size: 11px; }
 .results-slot select:focus { border-color: #8caf3d; outline: 2px solid rgba(140,175,61,.2); }
+.results-teams { display: grid; gap: 8px; }
+.results-team-list { margin-top: 0; }
+.results-team-list .team-card { padding: 16px; }
+.results-team-members { display: grid; gap: 7px; margin: 12px 0 0; padding: 0; list-style: none; }
+.results-team-members li { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 10px; }
+.results-team-members .muted { display: inline; }
+.results-representative { flex: 0 0 auto; padding: 4px 8px; border-radius: 999px; background: #eff6dc; color: #587a27; font-size: 8px; font-weight: 700; letter-spacing: .06em; }
 html[data-theme="dark"] .organizer-tools { background: rgba(26,31,46,.92); border-color: var(--line); }
 html[data-theme="dark"] .attendance-table-wrap, html[data-theme="dark"] .attendance-toggle, html[data-theme="dark"] .results-slot select { background: var(--surface-muted); border-color: var(--line); color: var(--foreground); }
 html[data-theme="dark"] .attendance-toggle.is-attended { background: #303c2a; color: #d3f79b; border-color: rgba(211,247,155,.35); }
 html[data-theme="dark"] .attendance-table th { color: var(--muted); }
 html[data-theme="dark"] .attendance-table td { border-color: rgba(255,255,255,.07); }
 html[data-theme="dark"] .attendance-code { color: var(--muted); }
+html[data-theme="dark"] .results-representative { background: #303c2a; color: #d3f79b; }
 .org-form { display: grid; gap: 9px; max-width: 760px; margin-top: 26px; padding: 26px; border: 1px solid var(--line); border-radius: 23px; background: rgba(255,255,255,.88); box-shadow: 0 8px 28px rgba(26,33,62,.045); }
 .org-form > label { display: grid; gap: 7px; margin-top: 6px; font-size: 10px; font-weight: 700; }
 .org-form input, .org-form select, .org-form textarea { width: 100%; min-height: 43px; padding: 10px 12px; border: 1px solid rgba(26,33,62,.12); border-radius: 12px; background: rgba(255,255,255,.88); color: var(--foreground); font: inherit; font-size: 12px; }
