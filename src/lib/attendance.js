@@ -64,25 +64,81 @@ export async function loadHackathonResults(hackathonId) {
   return Array.isArray(data) ? data : [];
 }
 
-// Options for one place or mention: attended participants only, and never
-// someone already used in another slot (so duplicates are impossible from the
-// UI, not just rejected by the database).
-export function availableOptions(attendedPeople = [], currentUserId = "", usedIds = []) {
-  const taken = new Set(usedIds.filter(Boolean));
-  if (currentUserId) taken.delete(currentUserId);
-  return attendedPeople.filter((person) => !taken.has(person.user_id));
+// Teams grouped out of the roster the page already loads. Team names are unique
+// inside a hackathon, and get_hackathon_roster() reports each participant's team
+// for a hackathon in any status — unlike list_hackathon_teams(), which only
+// answers for upcoming/active hackathons.
+//
+// Members are ordered leader-first then by name, so the representative is the
+// leader when they attended, otherwise the first attended member.
+export function teamsFromRoster(roster = [], attendedIds = []) {
+  const attended = new Set((attendedIds || []).filter(Boolean));
+  const byName = new Map();
+
+  (roster || []).forEach((person) => {
+    const name = String(person?.team_name || "").trim();
+    if (!name) return;
+    if (!byName.has(name)) byName.set(name, { name, members: [] });
+    byName.get(name).members.push({
+      user_id: person.user_id,
+      full_name: person.full_name,
+      username: person.username,
+      role: person.team_role === "leader" ? "leader" : "member",
+      attended: attended.has(person.user_id),
+    });
+  });
+
+  return [...byName.values()]
+    .map((team) => {
+      const members = [...team.members].sort(
+        (a, b) =>
+          (a.role === "leader" ? 0 : 1) - (b.role === "leader" ? 0 : 1) ||
+          String(a.full_name).localeCompare(String(b.full_name)),
+      );
+      return {
+        name: team.name,
+        members,
+        representative: members.find((member) => member.attended) || null,
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-// Turns the picker state into the payload the RPC expects. Empty slots are left
-// out, so clearing a place clears that participant's result.
-export function buildResultEntries(places = {}, mentions = []) {
+// Teams that can still take a slot: one with an attended member to stand in, and
+// not already used by another place or mention (so duplicates are impossible
+// from the UI, not just rejected by the database).
+export function availableTeams(teams = [], currentName = "", usedNames = []) {
+  const taken = new Set((usedNames || []).filter(Boolean));
+  if (currentName) taken.delete(currentName);
+  return (teams || []).filter((team) => team.representative && !taken.has(team.name));
+}
+
+// Turns the picker state into the payload the RPC expects: one entry per ranked
+// team, saved under the representative's user_id because that is the only
+// identity save_hackathon_results() accepts. Empty slots are left out, so
+// clearing a place clears that team's result.
+export function buildResultEntries(places = {}, mentions = [], teams = []) {
+  const byName = new Map((teams || []).map((team) => [team.name, team]));
   const entries = [];
   PLACES.forEach((place) => {
-    const userId = places[place];
-    if (userId) entries.push({ user_id: userId, place, honourable_mention: false });
+    const team = byName.get(places[place]);
+    if (team?.representative) {
+      entries.push({
+        user_id: team.representative.user_id,
+        place,
+        honourable_mention: false,
+      });
+    }
   });
-  mentions.filter(Boolean).forEach((userId) => {
-    entries.push({ user_id: userId, place: null, honourable_mention: true });
+  mentions.filter(Boolean).forEach((name) => {
+    const team = byName.get(name);
+    if (team?.representative) {
+      entries.push({
+        user_id: team.representative.user_id,
+        place: null,
+        honourable_mention: true,
+      });
+    }
   });
   return entries;
 }
@@ -98,7 +154,7 @@ export function validateResults({ entries = [], attendedIds = [], publishing = f
 
   entries.forEach((entry) => {
     if (seenUsers.has(entry.user_id)) {
-      errors.push("Each participant can only appear once.");
+      errors.push("Each team can only appear once.");
     }
     seenUsers.add(entry.user_id);
     if (entry.place !== null && entry.place !== undefined) {

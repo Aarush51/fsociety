@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import AttendanceSheet from "./AttendanceSheet";
 import {
   attendanceSummary,
-  availableOptions,
+  availableTeams,
   buildResultEntries,
   HONOURABLE_MENTION_COUNT,
   loadHackathonResults,
@@ -11,17 +11,22 @@ import {
   publishResults,
   saveHackathonAttendance,
   saveHackathonResults,
+  teamsFromRoster,
   unpublishResults as unpublishResultsRequest,
   validateResults,
 } from "../lib/attendance";
 
 // Organizer tools for one hackathon, shown on the organizer dashboard.
 //   ATTENDANCE  the roster for the day, one tap target per participant
-//   RESULTS     places 1 to 10 plus two honourable mentions, publishable
+//   RESULTS     teams ranked 1 to 10 plus two honourable mentions, publishable
+//
+// Teams are grouped from get_hackathon_roster() rather than list_hackathon_teams():
+// the listing RPC only returns teams for upcoming/active hackathons, while the
+// roster works after the event ends and already carries each member's team.
 //
 // Every write goes through an admin-checked RPC (see src/lib/attendance.js), so
 // the rules hold even if the browser is bypassed: only the hackathon's organizer
-// can write, and only attendees can be placed.
+// can write, and only teams with an attended member can be placed.
 
 const TABS = [
   { value: "attendance", label: "Attendance" },
@@ -30,8 +35,11 @@ const TABS = [
 
 const EMPTY_PLACES = PLACES.reduce((slots, place) => ({ ...slots, [place]: "" }), {});
 
-function personLabel(person) {
-  return person.team_name ? `${person.full_name} · ${person.team_name}` : person.full_name;
+function representativeLabel(team) {
+  if (!team?.representative) return "No team chosen";
+  return `Saved as ${team.representative.full_name} · ${
+    team.representative.role === "leader" ? "Leader" : "Member"
+  }`;
 }
 
 export default function OrganizerEventTools({ event }) {
@@ -43,6 +51,7 @@ export default function OrganizerEventTools({ event }) {
   const [savedIds, setSavedIds] = useState([]);
   const [places, setPlaces] = useState(EMPTY_PLACES);
   const [mentions, setMentions] = useState(["", ""]);
+  const [resultsNote, setResultsNote] = useState("");
   const [published, setPublished] = useState(false);
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState({ text: "", error: false });
@@ -50,6 +59,7 @@ export default function OrganizerEventTools({ event }) {
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
+    setResultsNote("");
     try {
       const [rows, savedResults] = await Promise.all([
         loadHackathonRoster(event.id),
@@ -61,13 +71,46 @@ export default function OrganizerEventTools({ event }) {
       setAttendedIds(attended);
       setSavedIds(attended);
 
-      // Restore what was saved last time.
+      // Restore what was saved last time, one slot per team. The RPC stores a
+      // user_id for each result, so each saved row is mapped back to its team
+      // through the roster.
+      const rosterTeams = teamsFromRoster(rows, attended);
+      const teamNameByMember = new Map();
+      rosterTeams.forEach((team) => {
+        team.members.forEach((member) => teamNameByMember.set(member.user_id, team.name));
+      });
+      const teamByName = new Map(rosterTeams.map((team) => [team.name, team]));
       const nextPlaces = { ...EMPTY_PLACES };
       const nextMentions = [];
+      const skippedIds = [];
+
       savedResults.forEach((row) => {
-        if (row.place && PLACES.includes(Number(row.place))) nextPlaces[Number(row.place)] = row.user_id;
-        else if (row.honourable_mention) nextMentions.push(row.user_id);
+        const teamName = teamNameByMember.get(row.user_id);
+        const team = teamName ? teamByName.get(teamName) : null;
+        if (!team?.representative) {
+          skippedIds.push(row.user_id);
+          return;
+        }
+        if (row.place && PLACES.includes(Number(row.place))) {
+          nextPlaces[Number(row.place)] = team.name;
+        } else if (row.honourable_mention && !nextMentions.includes(team.name)) {
+          nextMentions.push(team.name);
+        }
       });
+
+      const skippedNames = [...new Set(skippedIds)]
+        .map((id) => rows.find((person) => person.user_id === id)?.full_name)
+        .filter(Boolean);
+      setResultsNote(
+        skippedIds.length
+          ? `Saved ${skippedIds.length === 1 ? "result" : "results"}${
+              skippedNames.length ? ` for ${skippedNames.join(", ")}` : ""
+            } could not be matched to a team with an attended member, so ${
+              skippedIds.length === 1 ? "it was" : "they were"
+            } left out. Pick a team to save it again.`
+          : "",
+      );
+
       setPlaces(nextPlaces);
       setMentions([nextMentions[0] || "", nextMentions[1] || ""]);
       setPublished(savedResults.some((row) => row.published));
@@ -84,12 +127,22 @@ export default function OrganizerEventTools({ event }) {
     load();
   }, [load]);
 
-  // Results only offer people whose attendance has been saved — that is exactly
-  // what the database will accept when the result is written.
-  const attendedPeople = useMemo(
-    () => (roster || []).filter((person) => savedIds.includes(person.user_id)),
-    [roster, savedIds],
+  // Teams from the roster, so this works for a hackathon in any status. Results
+  // only offer teams with a saved-attendance member — that is exactly what the
+  // database will accept when the result is written.
+  const teams = useMemo(() => teamsFromRoster(roster || [], savedIds), [roster, savedIds]);
+  const teamByName = useMemo(() => new Map(teams.map((team) => [team.name, team])), [teams]);
+  const eligibleTeams = useMemo(
+    () => teams.filter((team) => team.representative),
+    [teams],
   );
+  const teamlessAttended = useMemo(() => {
+    const inTeam = new Set();
+    teams.forEach((team) => team.members.forEach((member) => inTeam.add(member.user_id)));
+    return (roster || []).filter(
+      (person) => savedIds.includes(person.user_id) && !inTeam.has(person.user_id),
+    );
+  }, [roster, teams, savedIds]);
 
   const toggleAttended = (userId) => {
     setMessage({ text: "", error: false });
@@ -115,10 +168,10 @@ export default function OrganizerEventTools({ event }) {
 
   const usedInPlaces = Object.values(places).filter(Boolean);
   const usedInMentions = mentions.filter(Boolean);
-  const optionsFor = (currentUserId) =>
-    availableOptions(attendedPeople, currentUserId, [...usedInPlaces, ...usedInMentions]);
+  const optionsFor = (currentName) =>
+    availableTeams(teams, currentName, [...usedInPlaces, ...usedInMentions]);
 
-  const entries = buildResultEntries(places, mentions);
+  const entries = buildResultEntries(places, mentions, teams);
 
   const submitResults = async (alsoPublish) => {
     const check = validateResults({
@@ -249,60 +302,125 @@ export default function OrganizerEventTools({ event }) {
       {!loading && !loadError && tab === "results" ? (
         <>
           <p className="muted small">
-            {attendedPeople.length
-              ? `${attendedPeople.length} attended ${
-                  attendedPeople.length === 1 ? "participant" : "participants"
-                } can be placed.`
-              : "Save attendance first — only attended participants can be placed."}
+            {savedIds.length === 0
+              ? "Save attendance first — only members marked as attended are eligible."
+              : eligibleTeams.length
+                ? `${eligibleTeams.length} of ${teams.length} ${
+                    teams.length === 1 ? "team" : "teams"
+                  } can be ranked. Each ranked team is saved under its leader if they attended, otherwise the first attended member.`
+                : teams.length
+                  ? "No team has an attended member yet, so no team can be ranked. Save attendance first."
+                  : "No teams have been formed for this hackathon yet, so there is nothing to rank."}
           </p>
 
+          {resultsNote ? <p className="muted tiny">{resultsNote}</p> : null}
+
           <div className="results-grid">
-            {PLACES.map((place) => (
-              <label className="results-slot" key={place}>
-                <span className="eyebrow">{place === 1 ? "1ST PLACE" : `PLACE ${place}`}</span>
-                <select
-                  value={places[place] || ""}
-                  onChange={(changeEvent) => {
-                    setPlaces((current) => ({ ...current, [place]: changeEvent.target.value }));
-                    setMessage({ text: "", error: false });
-                  }}
-                >
-                  <option value="">No one</option>
-                  {optionsFor(places[place]).map((person) => (
-                    <option value={person.user_id} key={person.user_id}>
-                      {personLabel(person)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ))}
-            {[0, 1].map((slot) => (
-              <label className="results-slot" key={`mention-${slot}`}>
-                <span className="eyebrow">HONOURABLE MENTION {slot + 1}</span>
-                <select
-                  value={mentions[slot] || ""}
-                  onChange={(changeEvent) => {
-                    const next = [...mentions];
-                    next[slot] = changeEvent.target.value;
-                    setMentions(next);
-                    setMessage({ text: "", error: false });
-                  }}
-                >
-                  <option value="">No one</option>
-                  {optionsFor(mentions[slot]).map((person) => (
-                    <option value={person.user_id} key={person.user_id}>
-                      {personLabel(person)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ))}
+            {PLACES.map((place) => {
+              const team = teamByName.get(places[place]);
+              return (
+                <label className="results-slot" key={place}>
+                  <span className="eyebrow">{place === 1 ? "1ST PLACE" : `PLACE ${place}`}</span>
+                  <select
+                    value={places[place] || ""}
+                    onChange={(changeEvent) => {
+                      setPlaces((current) => ({ ...current, [place]: changeEvent.target.value }));
+                      setMessage({ text: "", error: false });
+                    }}
+                  >
+                    <option value="">No team</option>
+                    {optionsFor(places[place]).map((option) => (
+                      <option value={option.name} key={option.name}>
+                        {option.name}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="muted tiny">{representativeLabel(team)}</span>
+                </label>
+              );
+            })}
+            {[0, 1].map((slot) => {
+              const team = teamByName.get(mentions[slot]);
+              return (
+                <label className="results-slot" key={`mention-${slot}`}>
+                  <span className="eyebrow">HONOURABLE MENTION {slot + 1}</span>
+                  <select
+                    value={mentions[slot] || ""}
+                    onChange={(changeEvent) => {
+                      const next = [...mentions];
+                      next[slot] = changeEvent.target.value;
+                      setMentions(next);
+                      setMessage({ text: "", error: false });
+                    }}
+                  >
+                    <option value="">No team</option>
+                    {optionsFor(mentions[slot]).map((option) => (
+                      <option value={option.name} key={option.name}>
+                        {option.name}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="muted tiny">{representativeLabel(team)}</span>
+                </label>
+              );
+            })}
           </div>
 
           <p className="muted tiny">
             Exactly {HONOURABLE_MENTION_COUNT} honourable mentions are needed before publishing. A
-            {" "}participant can hold only one place or mention.
+            team can hold only one place or mention.
           </p>
+
+          {teams.length ? (
+            <div className="results-teams">
+              <p className="eyebrow">TEAMS IN THIS HACKATHON</p>
+              <div className="team-list results-team-list">
+                {teams.map((team) => (
+                  <article className="team-card" key={team.name}>
+                    <div className="team-card-heading">
+                      <div>
+                        <p className="eyebrow">TEAM</p>
+                        <h2>{team.name}</h2>
+                      </div>
+                      <span className="team-member-count">
+                        {team.members.filter((member) => member.attended).length}/
+                        {team.members.length} ATTENDED
+                      </span>
+                    </div>
+                    <ul className="results-team-members">
+                      {team.members.map((member) => (
+                        <li key={member.user_id}>
+                          <span>
+                            <strong>{member.full_name}</strong>{" "}
+                            <span className="muted tiny">
+                              @{member.username}
+                              {member.role === "leader" ? " · Leader" : ""} ·{" "}
+                              {member.attended ? "Attended" : "Did not attend"}
+                            </span>
+                          </span>
+                          {team.representative?.user_id === member.user_id ? (
+                            <span className="results-representative">REPRESENTATIVE</span>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                    {!team.representative ? (
+                      <p className="muted tiny">
+                        No member is marked as attended, so this team can’t be ranked.
+                      </p>
+                    ) : null}
+                  </article>
+                ))}
+              </div>
+              {teamlessAttended.length ? (
+                <p className="muted tiny">
+                  {teamlessAttended.length} attended{" "}
+                  {teamlessAttended.length === 1 ? "participant is" : "participants are"} not on a
+                  team, so they can’t be ranked as a team.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="org-form-actions">
             <button
