@@ -1,0 +1,1110 @@
+/* ============================================================================
+   HACKMATE — SCOREBOARD ORANGE
+   ----------------------------------------------------------------------------
+   One place for the palette. The existing toggle is untouched: ThemeContext
+   writes html[data-theme="light"|"dark"] and localStorage "hackmate-theme".
+   Light is the stored default, so :root carries the light ("printed") board
+   and html[data-theme="dark"] switches to the glowing scoreboard.
+
+   Loaded last (main.jsx: styles -> theme -> responsive -> scoreboard), so it
+   is the authoritative presentation layer.
+   ========================================================================== */
+
+:root,
+html[data-theme="light"],
+html[data-theme="dark"] {
+  color-scheme: light;
+
+  /* ---- printed scoreboard (light) ---- */
+  --page: #f7f1e6;
+  --card: #fffaf0;
+  --bd: #7a4a00;
+  --tx: #3a2200;
+  --mu: #7a5a2a;
+  --ac: #b45309;
+  --ac2: #ffe2b0;
+  --on: #ffffff;
+  --glow: rgba(180, 83, 9, .1);
+
+  /* ---- logo (printed) ---- */
+  --logo-from: #b45309;
+  --logo-to: #7a4a00;
+  --logo-ink: #ffffff;
+  --logo-text: #3a2200;
+  --logo-accent: #b45309;
+
+  /* derived roles, still palette-only */
+  --banner: var(--ac2);
+  --banner-title: var(--tx);
+  --danger: #8a1c1c;
+  --danger-bg: color-mix(in srgb, var(--danger) 12%, var(--card));
+  --surface-muted: color-mix(in srgb, var(--ac2) 70%, var(--card));
+  --chip: color-mix(in srgb, var(--bd) 10%, transparent);
+  --hover-ink: color-mix(in srgb, var(--ac) 82%, var(--tx));
+
+  /* ---- legacy token bridge (old components read these) ---- */
+  --background: var(--page);
+  --background-alt: var(--card);
+  --foreground: var(--tx);
+  --muted: var(--mu);
+  --line: var(--bd);
+  --line-strong: var(--bd);
+  --surface: var(--card);
+  --primary: var(--ac);
+  --primary-strong: var(--hover-ink);
+  --primary-text: var(--ac);
+  --secondary: var(--ac);
+  --accent: var(--ac);
+  --accent-text: var(--ac);
+  --accent-ink: var(--on);
+  --lime: var(--ac);
+  --warning: var(--ac);
+  --warning-text: var(--ac);
+  --error: var(--danger);
+  --error-text: var(--danger);
+
+  --color-bg: var(--page);
+  --color-bg-elevated: var(--card);
+  --color-surface: var(--card);
+  --color-surface-raised: var(--surface-muted);
+  --color-primary: var(--ac);
+  --color-primary-hover: var(--hover-ink);
+  --color-success: var(--ac);
+  --color-warning: var(--ac);
+  --color-error: var(--danger);
+  --color-text: var(--tx);
+  --color-muted: var(--mu);
+  --color-border: var(--bd);
+  --color-border-strong: var(--bd);
+
+  /* ---- flat geometry with hard edges everywhere ---- */
+  --radius-card: 2px;
+  --radius-lg: 2px;
+  --radius-control: 2px;
+  --radius-pill: 2px;
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --card-radius: 2px;
+  --button-radius: 2px;
+  --input-radius: 2px;
+
+  /* ---- light mode: small hard shadow, no glow ---- */
+  --shadow-card: 3px 3px 0 rgba(122, 74, 0, .25);
+  --shadow-raised: 3px 3px 0 rgba(122, 74, 0, .25);
+
+  /* ---- type ---- */
+  --font-sans: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-display: "Barlow Condensed", Impact, "Arial Narrow", sans-serif;
+  --type-h1: clamp(40px, 11vw, 72px);
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* ---- glowing scoreboard (dark) ---- */
+  --page: #0a0a0a;
+  --card: #111111;
+  --bd: #6b4500;
+  --tx: #ffb000;
+  --mu: #c08a28;
+  --ac: #ffb000;
+  --ac2: #ff6a00;
+  --on: #0a0a0a;
+  --glow: rgba(255, 150, 0, .1);
+
+  /* ---- logo (glowing) ---- */
+  --logo-from: #ffb000;
+  --logo-to: #ff6a00;
+  --logo-ink: #0a0a0a;
+  --logo-text: #ffb000;
+  --logo-accent: #ff6a00;
+
+  --banner: #1a1100;
+  --banner-title: var(--ac);
+  --danger: #ff7b72;
+  --danger-bg: color-mix(in srgb, var(--danger) 16%, var(--card));
+  --surface-muted: color-mix(in srgb, var(--ac) 12%, var(--card));
+  --chip: color-mix(in srgb, var(--ac) 10%, transparent);
+  --hover-ink: color-mix(in srgb, var(--ac) 76%, #ffffff);
+
+  /* deep mode is border-only: cards never glow */
+  --shadow-card: none;
+  --shadow-raised: none;
+}
+
+/* ------------------------------------------------------------------ base -- */
+
+body,
+.hm-app-shell {
+  background: var(--page) !important;
+  color: var(--tx) !important;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.65;
+}
+
+::selection { background: var(--ac); color: var(--on); }
+
+a { color: inherit; }
+
+img,
+svg,
+video { color: inherit; }
+
+/* Headings + the logo are the only display-font users. */
+h1,
+h2,
+h3,
+h4,
+.brand,
+.event-title,
+.detail-art h1,
+.results-podium-team,
+.bento-stat,
+.panel-heading h2,
+.card-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -.01em;
+}
+
+h1,
+.hero h1,
+.page-intro h1,
+.not-found h1,
+.detail-art h1 {
+  font-size: var(--type-h1);
+  line-height: .95;
+  letter-spacing: -.01em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+h2,
+.section-heading h2,
+.dashboard-heading h2,
+.idea-builder-heading h2,
+.team-card-heading h2,
+.panel-heading h2,
+.profile-card h2,
+.profile-about h2,
+.home-section-heading h2,
+.leaderboard-layout h2,
+.team-copy h2,
+.closing-cta h2 {
+  font-size: 26px;
+  line-height: 1.05;
+  letter-spacing: -.01em;
+  text-transform: uppercase;
+}
+
+h3 { font-size: 20px; line-height: 1.15; }
+
+p,
+li,
+label,
+button,
+input,
+textarea,
+select,
+.nav-links,
+.button,
+.skill,
+.eyebrow { font-family: var(--font-sans); }
+
+.eyebrow {
+  color: var(--mu);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .16em;
+}
+
+.muted { color: var(--mu); }
+
+/* Big scoreboard numerals. */
+.profile-stats article strong,
+.profile-stats article h3,
+.organizer-stats article strong,
+.leaderboard-stat-grid article strong,
+.hm-stat-card strong,
+.bento-stat,
+#dashboard-stats strong {
+  font-family: var(--font-display);
+  font-size: 38px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+/* ------------------------------------------------------------ navigation -- */
+
+.site-header,
+:where(html[data-theme="dark"]) .site-header {
+  background: var(--page);
+  border-bottom: 2px solid var(--bd);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.brand {
+  color: var(--tx);
+  font-size: 24px;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: .02em;
+}
+
+.brand-dot { color: var(--ac); }
+
+.brand-mark,
+:where(html[data-theme="dark"]) .brand-mark,
+.brand-mark-small {
+  width: 34px;
+  height: 34px;
+  border: 2px solid var(--bd);
+  border-radius: 2px;
+  background: var(--ac);
+  color: var(--on);
+  box-shadow: none;
+}
+
+.nav-links,
+:where(html[data-theme="dark"]) .nav-links {
+  color: var(--mu);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.nav-links a:hover,
+.nav-links a[aria-current="page"],
+:where(html[data-theme="dark"]) .nav-links a:hover {
+  color: var(--ac);
+}
+
+.nav-links a::after { height: 2px; background: var(--ac); }
+
+.nav-links a:hover,
+.nav-links a[aria-current="page"] {
+  background: transparent;
+}
+
+.theme-toggle,
+:where(html[data-theme="dark"]) .theme-toggle {
+  border: 2px solid var(--bd);
+  border-radius: 2px;
+  background: var(--card);
+  color: var(--tx);
+}
+
+.theme-toggle:hover,
+:where(html[data-theme="dark"]) .theme-toggle:hover {
+  border-color: var(--ac);
+  background: var(--card);
+  color: var(--ac);
+}
+
+.nav-menu-button {
+  border: 2px solid var(--bd);
+  border-radius: 2px;
+  background: var(--card);
+  color: var(--tx);
+}
+
+@media (max-width: 899px) {
+  .nav-links,
+  .nav-links.is-open {
+    border: 2px solid var(--bd);
+    border-radius: 2px;
+    background: var(--card);
+    box-shadow: var(--shadow-card);
+  }
+}
+
+/* --------------------------------------------------------------- buttons -- */
+
+.button,
+.hm-button {
+  min-height: 44px;
+  border: 2px solid var(--bd);
+  border-radius: 2px;
+  background: var(--card);
+  color: var(--tx);
+  font-family: var(--font-sans);
+  font-weight: 700;
+  letter-spacing: 0;
+  box-shadow: none;
+}
+
+.button-dark,
+.button-lime,
+.button-primary,
+.hm-button-primary,
+.idea-generate-button,
+:where(html[data-theme="dark"]) .button-dark,
+:where(html[data-theme="dark"]) .button-lime {
+  background: var(--ac) !important;
+  border-color: var(--ac) !important;
+  color: var(--on) !important;
+  box-shadow: none;
+}
+
+.button-outline,
+.button-primary-outline,
+.hm-button-outline,
+:where(html[data-theme="dark"]) .button-outline {
+  background: transparent !important;
+  border: 2px solid var(--bd) !important;
+  color: var(--tx) !important;
+  box-shadow: none;
+}
+
+.button:disabled,
+.button[aria-disabled="true"] { opacity: .45; }
+
+/* ----------------------------------------------------- chips, tags, labels */
+
+.skill,
+.hackathon-theme,
+.idea-chip,
+.idea-tag,
+.dark-chip,
+.event-category,
+.status-label,
+.team-member-count,
+.rank-badge,
+.event-tag,
+.tf-level,
+.tf-level-picker,
+.auth-audience-option {
+  border: 1px solid var(--bd);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--tx);
+  font-family: var(--font-sans);
+  font-weight: 500;
+  letter-spacing: .02em;
+  box-shadow: none;
+}
+
+/* Light active chip: pale panel, dark ink. */
+.filter-active,
+.hackathon-theme.filter-active,
+.idea-time-option[aria-pressed="true"],
+.event-category.filter-active {
+  background: var(--ac2) !important;
+  border: 1px solid var(--bd) !important;
+  color: var(--tx) !important;
+  box-shadow: none !important;
+}
+
+/* Dark active chip: solid accent, dark ink. */
+html[data-theme="dark"] .filter-active,
+html[data-theme="dark"] .hackathon-theme.filter-active,
+html[data-theme="dark"] .idea-time-option[aria-pressed="true"] {
+  background: var(--ac) !important;
+  border-color: var(--ac) !important;
+  color: var(--on) !important;
+}
+
+/* Dark inactive chips: border only, no leftover panel fill. */
+html[data-theme="dark"] .skill,
+html[data-theme="dark"] .hackathon-theme:not(.filter-active),
+html[data-theme="dark"] .idea-chip,
+html[data-theme="dark"] .dark-chip {
+  background: transparent !important;
+  border: 1px solid var(--bd) !important;
+  color: var(--tx) !important;
+  box-shadow: none !important;
+}
+
+html[data-theme="light"] .skill,
+html[data-theme="light"] .hackathon-theme:not(.filter-active),
+html[data-theme="light"] .idea-chip,
+html[data-theme="light"] .dark-chip {
+  background: transparent !important;
+  border: 1px solid var(--bd) !important;
+  color: var(--tx) !important;
+  box-shadow: none !important;
+}
+
+/* ------------------------------------------------------------------ logo -- */
+
+.hm-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+  line-height: 1;
+  text-decoration: none;
+  color: var(--logo-text);
+}
+
+.hm-logo__mark {
+  display: block;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  animation: hm-logo-float 3s ease-in-out infinite;
+}
+
+.hm-logo__text {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 30px;
+  line-height: 1;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.hm-logo__hack { color: var(--logo-text); }
+.hm-logo__mate { color: var(--logo-accent); }
+
+.hm-logo:focus-visible {
+  outline: 2px solid var(--logo-accent);
+  outline-offset: 4px;
+}
+
+@keyframes hm-logo-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hm-logo__mark { animation: none; }
+}
+
+/* ------------------------------------------------------------- page heroes -- */
+
+.hero-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.hero-bg .hm-pattern-waves {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.page-hero {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.page-hero__content {
+  position: relative;
+  z-index: 1;
+}
+
+/* The landing hero already supplies position/overflow; keep its copy above the
+   decorative layer. */
+.hero > .hero-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+.hero > .hero-copy,
+.hero > .hero-visual { position: relative; z-index: 1; }
+
+/* ---------------------------------------------------------------- hero ---- */
+
+.hero { background: transparent; }
+
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  right: 0;
+  bottom: 0;
+  border-radius: 0;
+  background: radial-gradient(circle at 68% 45%, var(--glow), transparent 62%);
+  filter: none;
+  z-index: -1;
+  display: none;
+}
+
+html[data-theme="dark"] .hero::after { display: block; }
+
+html[data-theme="dark"] .hero h1 {
+  text-shadow: 0 0 8px rgba(255, 176, 0, .3);
+}
+
+.hero .highlight { color: var(--tx); }
+
+.highlight::after {
+  height: 10px;
+  border-radius: 2px;
+  background: var(--ac2);
+  opacity: .85;
+  transform: none;
+}
+
+html[data-theme="dark"] .highlight::after {
+  background: var(--ac);
+  opacity: .22;
+}
+
+.status-pill {
+  border: 2px solid var(--bd);
+  border-radius: 2px;
+  background: var(--card);
+  color: var(--mu);
+  font-family: var(--font-sans);
+  letter-spacing: .12em;
+}
+
+.online-dot { background: var(--ac); box-shadow: none; }
+
+.hero-description,
+.social-proof { color: var(--mu); }
+.social-proof strong { color: var(--tx); }
+
+.hero-orb {
+  width: 96px;
+  height: 96px;
+  background: var(--banner);
+  border: 2px solid var(--bd);
+  opacity: 1;
+}
+
+.hero-ring { border: 2px solid var(--bd); }
+
+/* -------------------------------------------------------- hero scoreboard */
+
+.project-panel {
+  background: var(--card);
+  border: 2px solid var(--bd);
+  border-radius: 2px;
+  box-shadow: var(--shadow-card);
+  backdrop-filter: none;
+}
+
+.panel-heading h2 { font-size: 26px; }
+
+.panel-star {
+  width: 40px;
+  height: 40px;
+  border: 2px solid var(--bd);
+  border-radius: 2px;
+  background: var(--ac2);
+  color: var(--tx);
+}
+
+.project-preview {
+  border: 1px solid var(--bd);
+  border-radius: 2px;
+  background: var(--surface-muted);
+}
+
+.project-white {
+  border: 1px solid var(--bd);
+  border-radius: 2px;
+  background: var(--card);
+}
+
+.project-icon {
+  border-radius: 2px;
+  background: var(--ac);
+  color: var(--on);
+}
+
+.status-label {
+  background: transparent;
+  border-color: var(--bd);
+  color: var(--ac);
+}
+
+.project-team > strong { color: var(--ac); }
+
+.panel-banner {
+  border: 2px solid var(--bd);
+  border-radius: 2px;
+  background: var(--ac);
+  color: var(--on);
+}
+
+.panel-banner > div span { color: var(--on); opacity: .75; }
+
+.round-lime {
+  border-radius: 2px;
+  background: var(--on);
+  color: var(--ac);
+}
+
+.floating-note {
+  border: 2px solid var(--bd);
+  border-radius: 2px;
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+}
+
+/* -------------------------------------------------------------- surfaces -- */
+
+:is(.event-card, .team-panel, .team-card, .team-create-panel, .leaderboard-card,
+    .leaderboard-table, .profile-card, .profile-about, .profile-activity,
+    .profile-stats article, .detail-aside, .track-card, .auth-card, .idea-builder,
+    .idea-tips, .idea-card, .idea-roadmap, .roadmap-phase, .roadmap-task,
+    .roadmap-task-panel, .friend-code-panel, .organization-status, .org-form,
+    .admin-card, .dashboard-data-card, .shortcut-card, .leaderboard-aside,
+    .idea-modal, .project-modal, .bento-card, .idea-preview, .idea-selected,
+    .attendance-table-wrap, .results-place-row, .results-mention-list li,
+    .profile-review-card, .profile-coin-row, .chat-panel, .report-target) {
+  background: var(--card) !important;
+  border: 2px solid var(--bd) !important;
+  border-radius: 2px !important;
+  box-shadow: var(--shadow-card) !important;
+  color: var(--tx);
+}
+
+.person-card,
+.team-member,
+.friend-code-found,
+.team-empty,
+.dashboard-empty,
+.idea-step,
+.report-target {
+  background: var(--card);
+  border: 1px solid var(--bd);
+  border-radius: 2px;
+  box-shadow: none;
+}
+
+.team-empty { border-style: dashed; }
+
+.event-card:nth-child(3n + 1) { transform: none !important; }
+
+/* Hackathon banners: one flat board in both modes. */
+.event-art,
+.event-art.lime,
+.event-art.blue,
+.event-art.peach,
+.event-art.pink,
+.event-art.lavender,
+.detail-art {
+  background: var(--banner) !important;
+  border-bottom: 1px solid var(--bd);
+  border-radius: 0;
+}
+
+.detail-art { border: 2px solid var(--bd); border-radius: 2px; }
+
+.event-title,
+.detail-art h1,
+.event-title.highlight {
+  color: var(--banner-title) !important;
+  font-family: var(--font-display);
+  font-weight: 700;
+}
+
+.event-decoration,
+.detail-decoration { color: var(--bd); opacity: .22; }
+
+.event-category,
+.event-tag {
+  background: transparent;
+  border: 1px solid var(--bd);
+  color: var(--tx);
+}
+
+html[data-theme="dark"] .event-category { color: var(--ac); }
+
+html[data-theme="dark"] .event-tag {
+  background: var(--ac);
+  border-color: var(--ac);
+  color: var(--on);
+}
+
+.event-facts,
+.event-info .muted,
+.prize .muted { color: var(--mu); }
+
+.event-info .button { border: 2px solid var(--bd); }
+
+/* ------------------------------------------------- sections & statements -- */
+
+.section-tint {
+  background: var(--card) !important;
+  border-block: 2px solid var(--bd) !important;
+}
+
+.section-description,
+.hero-description,
+.team-description,
+.profile-bio,
+.detail-description,
+.hackathon-status,
+.social-proof { color: var(--mu) !important; }
+
+.leaderboard-section {
+  background: var(--card) !important;
+  border-block: 2px solid var(--bd);
+  color: var(--tx);
+}
+
+.leaderboard-layout h2 { color: var(--tx); }
+.leaderboard-layout h2 span { color: var(--ac); }
+.leaderboard-copy,
+.light-eyebrow { color: var(--mu) !important; }
+
+.leaderboard-aside { color: var(--tx); }
+.leaderboard-aside > p { color: var(--mu); }
+
+.dark-callout {
+  background: var(--card) !important;
+  border: 2px solid var(--bd) !important;
+  color: var(--tx);
+  box-shadow: none;
+}
+
+.dark-callout h2 { color: var(--tx); text-transform: uppercase; }
+.dark-callout > p { color: var(--mu); }
+
+.closing-cta {
+  background: var(--banner) !important;
+  border: 2px solid var(--bd) !important;
+  border-radius: 2px !important;
+  color: var(--tx);
+  box-shadow: var(--shadow-card);
+}
+
+html[data-theme="dark"] .closing-cta { background: var(--card) !important; }
+
+.site-footer {
+  background: var(--page);
+  border-top: 2px solid var(--bd);
+}
+
+.footer-inner > p,
+.footer-links { color: var(--mu); }
+
+.back-link { color: var(--mu); }
+.back-link:hover { color: var(--ac); }
+
+/* ----------------------------------------------------------- leaderboard -- */
+
+.rank-row { border-top: 1px solid var(--bd); }
+.rank-number { color: var(--mu); }
+.rank-first { color: var(--ac); }
+.rank-row-dark { border-color: var(--bd); }
+.rank-columns { color: var(--mu); }
+
+.rank-row-dark .rank-person .muted,
+.rank-row-dark .points small,
+.rank-row-dark .rank-demo-label { color: var(--mu); }
+
+.points { color: var(--tx); }
+
+.rank-badge-rookie,
+.rank-badge-bronze,
+.rank-badge-silver,
+.rank-badge-platinum,
+.rank-badge-diamond,
+.rank-badge-elite,
+.rank-badge-champion {
+  background: transparent;
+  border-color: var(--bd);
+  color: var(--mu);
+}
+
+.rank-badge-gold {
+  background: transparent;
+  border-color: var(--ac);
+  color: var(--ac);
+}
+
+.rank-badge-unreal {
+  background: var(--ac);
+  border-color: var(--ac);
+  color: var(--on);
+}
+
+/* -------------------------------------------------------------- controls -- */
+
+.hackathon-controls {
+  background: var(--card);
+  border: 2px solid var(--bd);
+  border-radius: 2px;
+  box-shadow: var(--shadow-card);
+}
+
+#hackathon-search,
+.hackathon-sort-label select,
+#team-hackathon,
+#team-create-form input,
+#team-create-form textarea,
+#team-create-form select,
+#profile-form input,
+#profile-form textarea,
+.friend-code-row input,
+.friend-code-input-row input,
+.report-form textarea,
+.chat-form input,
+.tf-fields input,
+.tf-fields textarea,
+.tf-level,
+.tf-level-picker,
+.hm-input,
+.hm-select {
+  background: var(--card);
+  border: 2px solid var(--bd);
+  border-radius: 2px;
+  color: var(--tx);
+}
+
+:where(input, textarea, select):focus-visible {
+  border-color: var(--ac);
+  outline: 2px solid color-mix(in srgb, var(--ac) 32%, transparent);
+  outline-offset: 1px;
+}
+
+input::placeholder,
+textarea::placeholder { color: var(--mu); opacity: .8; }
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+textarea,
+select { background: var(--card); border: 2px solid var(--bd); border-radius: 2px; color: var(--tx); }
+
+.form-message:not(:empty),
+.notice {
+  background: var(--surface-muted);
+  border: 1px solid var(--bd);
+  border-radius: 2px;
+  color: var(--tx);
+}
+
+.form-message[data-error="true"] {
+  background: var(--danger-bg);
+  border: 1px solid var(--danger);
+  color: var(--danger);
+}
+
+/* ------------------------------------------------------------------ auth -- */
+
+.auth-audience {
+  background: var(--surface-muted);
+  border: 1px solid var(--bd);
+  border-radius: 2px;
+}
+
+.auth-audience-option { color: var(--mu); }
+
+.auth-audience-active {
+  background: var(--card);
+  border: 1px solid var(--bd);
+  border-radius: 2px;
+  color: var(--tx);
+}
+
+.auth-logo {
+  background: var(--ac);
+  color: var(--on);
+  border: 2px solid var(--bd);
+}
+
+.auth-switch a,
+.text-link { color: var(--ac); }
+
+/* --------------------------------------------------------------- avatars -- */
+
+.avatar,
+.avatar.lime,
+.avatar.blue,
+.avatar.peach,
+.avatar.pink,
+.avatar.lavender {
+  background: var(--ac2);
+  border: 2px solid var(--bd);
+  border-radius: 2px;
+  color: var(--tx);
+  font-family: var(--font-sans);
+  font-weight: 700;
+}
+
+html[data-theme="dark"] .avatar,
+html[data-theme="dark"] .avatar.lime,
+html[data-theme="dark"] .avatar.blue,
+html[data-theme="dark"] .avatar.peach,
+html[data-theme="dark"] .avatar.pink,
+html[data-theme="dark"] .avatar.lavender {
+  background: var(--banner);
+  color: var(--ac);
+}
+
+.avatar-stack .avatar { border-color: var(--page); }
+
+/* ------------------------------------------------ home bento & dashboard -- */
+
+.bento-card,
+.bento-card-blue,
+.bento-card-ai,
+.bento-card-community {
+  background: var(--card) !important;
+  border: 2px solid var(--bd) !important;
+  border-radius: 2px !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+.bento-card-featured {
+  background: var(--card) !important;
+  border-color: var(--ac) !important;
+}
+
+.bento-card-featured h3 { margin-top: 48px; font-size: 26px; }
+
+.bento-icon {
+  border: 2px solid var(--bd);
+  border-radius: 2px;
+  background: var(--ac2);
+  color: var(--tx);
+}
+
+html[data-theme="dark"] .bento-icon {
+  background: var(--banner);
+  color: var(--ac);
+}
+
+.bento-kicker,
+.ai-mini-result small { color: var(--ac); }
+
+.ai-mini-result {
+  background: var(--surface-muted);
+  border: 1px solid var(--bd);
+  border-radius: 2px;
+}
+
+.ai-live-dot { background: var(--ac); box-shadow: none; }
+
+.community-stats strong { font-family: var(--font-display); font-size: 38px; }
+.community-stats span { color: var(--mu); }
+.shortcut-card > strong {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 700;
+}
+.home-section-heading > p { color: var(--mu); }
+
+@media (min-width: 900px) {
+  .shortcut-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .shortcut-grid > .shortcut-card:first-child { grid-column: span 2; }
+  .organizer-shortcuts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .idea-layout { grid-template-columns: minmax(0, 1.6fr) minmax(0, .9fr); }
+  .idea-builder { grid-row: span 2; }
+}
+
+/* ------------------------------------------------------ idea generator -- */
+.idea-step-number,
+.status-label {
+  border: 1px solid var(--bd);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--ac);
+  font-family: var(--font-sans);
+  font-weight: 700;
+}
+.idea-card-selected { box-shadow: 0 0 0 2px var(--ac) !important; }
+.idea-generate-button { background: var(--ac) !important; color: var(--on) !important; }
+.idea-brief dd,
+.idea-card-summary dd { color: var(--mu); }
+.idea-suggestions .skill:hover { border-color: var(--ac); color: var(--ac); }
+
+/* ------------------------------------------------- admin / misc details -- */
+.admin-badge-pending,
+.admin-badge-approved,
+.organization-status-pending,
+.organization-status-approved,
+.organizer-event-badge { border-color: var(--ac); color: var(--ac); }
+.admin-badge-rejected,
+.organization-status-rejected { border-color: var(--danger); color: var(--danger); }
+.organization-status { border-left: 3px solid var(--ac); }
+
+.attendance-table-wrap { background: var(--card); }
+.attendance-table th { color: var(--mu); border-color: var(--bd); }
+.attendance-table td { border-color: var(--bd); }
+.attendance-code { color: var(--ac); }
+.attendance-toggle,
+.admin-reject { background: var(--card); border: 2px solid var(--bd); color: var(--tx); }
+
+.results-podium-card[data-place="1"] {
+  background: var(--banner) !important;
+  border-color: var(--ac) !important;
+}
+.results-place-rank { color: var(--mu); }
+
+.review-stars { color: var(--ac); }
+.profile-coin-amount.positive { color: var(--ac); }
+.profile-coin-amount.negative { color: var(--danger); }
+.team-member-count { color: var(--ac); border-color: var(--bd); }
+
+.bento-card::after { background: var(--glow); filter: none; }
+.pattern-waves::before {
+  background:
+    radial-gradient(circle at 68% 42%, var(--glow), transparent 30%),
+    radial-gradient(circle at 82% 72%, var(--glow), transparent 26%);
+}
+.pattern-waves svg { opacity: .6; }
+
+/* ---------------------------------------------------------------- motion -- */
+@keyframes sb-rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+.event-card,
+.shortcut-card,
+.bento-card,
+.team-card,
+.idea-card,
+.profile-stats article,
+.leaderboard-stat-grid article,
+.dashboard-data-card,
+.track-card {
+  animation: sb-rise .45s cubic-bezier(.2, .7, .2, 1) both;
+}
+.event-card:nth-child(2),
+.shortcut-card:nth-child(2),
+.bento-card:nth-child(2),
+.idea-card:nth-child(2),
+.team-card:nth-child(2) { animation-delay: .06s; }
+.event-card:nth-child(3),
+.shortcut-card:nth-child(3),
+.bento-card:nth-child(3),
+.idea-card:nth-child(3),
+.team-card:nth-child(3) { animation-delay: .12s; }
+.event-card:nth-child(4),
+.shortcut-card:nth-child(4),
+.bento-card:nth-child(4) { animation-delay: .18s; }
+
+@media (hover: hover) {
+  .event-card:hover,
+  .shortcut-card:hover,
+  .bento-card:hover,
+  .team-card:hover,
+  .idea-card:hover,
+  .track-card:hover,
+  .dashboard-data-card:hover { transform: translateY(-3px); }
+  .event-card:hover,
+  .shortcut-card:hover,
+  .bento-card:hover { border-color: var(--ac) !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+  .event-card:hover,
+  .shortcut-card:hover,
+  .bento-card:hover,
+  .team-card:hover,
+  .idea-card:hover,
+  .track-card:hover,
+  .dashboard-data-card:hover { transform: none; }
+}

@@ -5,6 +5,7 @@ import DraftRestoredNote from "../components/DraftRestoredNote";
 import useFormDraft from "../hooks/useFormDraft";
 import { SkillsFields, cleanHobbies, cleanInterests, cleanSkillLevels } from "../features/teams";
 import { Arrow } from "../components/Icons";
+import HeroBackground from "../components/HeroBackground";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
 import { formatEventDate, formatNumber, initialsFromName, shortName } from "../lib/format";
@@ -302,11 +303,16 @@ export default function Profile() {
     <>
       <PageTitle title="Profile | HackMate" />
       <main className="page-main wrap">
-        <PageIntro
-          eyebrow="YOUR CORNER OF THE COMMUNITY"
-          title="A profile that feels like you."
-          description="Share the skills you bring, what you want to learn, and the kinds of projects you'd love to build."
-        />
+        <section className="page-hero">
+          <HeroBackground />
+          <div className="page-hero__content">
+            <PageIntro
+              eyebrow="YOUR CORNER OF THE COMMUNITY"
+              title="A profile that feels like you."
+              description="Share the skills you bring, what you want to learn, and the kinds of projects you'd love to build."
+            />
+          </div>
+        </section>
         <div className="profile-layout">
           <section className="profile-about">
             <div className="profile-card-top">

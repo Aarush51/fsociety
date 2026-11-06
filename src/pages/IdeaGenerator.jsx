@@ -6,6 +6,7 @@ import IdeaDetailsDialog, {
   IdeaDetailBlocks,
   IdeaTags,
 } from "../components/IdeaDetails";
+import HeroBackground from "../components/HeroBackground";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
 import ProjectCreateDialog from "../components/ProjectCreateDialog";
@@ -740,11 +741,16 @@ export default function IdeaGenerator() {
     <>
       <PageTitle title="Idea generator | HackMate" />
       <main className="page-main wrap idea-generator-page">
-        <PageIntro
-          eyebrow="AI HACKATHON IDEA GENERATOR"
-          title="Start with a theme. Leave with a direction."
-          description="Choose an event, share what you and your team can build, and set your time budget. The Supabase Edge Function turns your brief into three scoped ideas."
-        />
+        <section className="page-hero">
+          <HeroBackground />
+          <div className="page-hero__content">
+            <PageIntro
+              eyebrow="AI HACKATHON IDEA GENERATOR"
+              title="Start with a theme. Leave with a direction."
+              description="Choose an event, share what you and your team can build, and set your time budget. The Supabase Edge Function turns your brief into three scoped ideas."
+            />
+          </div>
+        </section>
         <div className="idea-layout">
           <section className="idea-builder" aria-labelledby="idea-builder-heading">
             <div className="idea-builder-heading">

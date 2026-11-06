@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import EventCard from "../components/EventCard";
+import HeroBackground from "../components/HeroBackground";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
 import { demoHackathons } from "../lib/demoData";
@@ -117,11 +118,16 @@ export default function Hackathons() {
     <>
       <PageTitle title="Hackathons | HackMate" />
       <main className="page-main wrap hackathons-page">
-        <PageIntro
-          eyebrow="FIND YOUR NEXT CHALLENGE"
-          title="Good ideas start with showing up."
-          description="Explore upcoming hackathons, meet people who care about the same things, and make something you didn't know you could."
-        />
+        <section className="page-hero">
+          <HeroBackground />
+          <div className="page-hero__content">
+            <PageIntro
+              eyebrow="FIND YOUR NEXT CHALLENGE"
+              title="Good ideas start with showing up."
+              description="Explore upcoming hackathons, meet people who care about the same things, and make something you didn't know you could."
+            />
+          </div>
+        </section>
         <section className="hackathon-controls" aria-label="Search and filter hackathons">
           <label className="hackathon-search-label" htmlFor="hackathon-search">
             Search hackathons

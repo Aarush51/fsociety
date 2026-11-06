@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import Chat from "../components/Chat";
 import { Arrow } from "../components/Icons";
 import FriendCodeInput from "../components/FriendCodeInput";
+import HeroBackground from "../components/HeroBackground";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
 import ReportForm from "../components/ReportForm";
@@ -175,11 +176,16 @@ export default function Huddle() {
     <>
       <PageTitle title="The Huddle | HackMate" />
       <main className="page-main huddle-shell">
-        <PageIntro
-          eyebrow="THE HUDDLE"
-          title="Your people, in one place."
-          description="Add friends by their six-digit ID, answer the requests waiting on you, and see the teams and reviews you share with the community."
-        />
+        <section className="page-hero">
+          <HeroBackground />
+          <div className="page-hero__content">
+            <PageIntro
+              eyebrow="THE HUDDLE"
+              title="Your people, in one place."
+              description="Add friends by their six-digit ID, answer the requests waiting on you, and see the teams and reviews you share with the community."
+            />
+          </div>
+        </section>
 
         <div className="filter-list huddle-tabs" role="tablist" aria-label="The Huddle sections">
           {TABS.map((item) => {

@@ -4,6 +4,7 @@ import { friendPairKey, sendChatMessage } from "../components/Chat";
 import EventCard from "../components/EventCard";
 import { Arrow, CopyIcon } from "../components/Icons";
 import IdeaDetailsDialog, { ideaShareText } from "../components/IdeaDetails";
+import HeroBackground from "../components/HeroBackground";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
 import { useAuth } from "../context/AuthContext";
@@ -286,11 +287,16 @@ export default function Dashboard() {
     <>
       <PageTitle title="Dashboard | HackMate" />
       <main className="page-main wrap">
-        <PageIntro
-          eyebrow="YOUR HACKMATE HOME BASE"
-          title="Good things start with a first step."
-          description="Your ID, your points, the events you signed up for and the skills you bring — all in one place."
-        />
+        <section className="page-hero">
+          <HeroBackground />
+          <div className="page-hero__content">
+            <PageIntro
+              eyebrow="YOUR HACKMATE HOME BASE"
+              title="Good things start with a first step."
+              description="Your ID, your points, the events you signed up for and the skills you bring — all in one place."
+            />
+          </div>
+        </section>
         <div className="dashboard-greeting">
           <span className="avatar avatar-large lime" id="dashboard-avatar">
             {initialsFromName(profile?.full_name, "HM")}

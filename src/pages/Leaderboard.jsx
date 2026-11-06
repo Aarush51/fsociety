@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Arrow } from "../components/Icons";
 import LeaderboardRows from "../components/LeaderboardRows";
+import HeroBackground from "../components/HeroBackground";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
 import {
@@ -51,11 +52,16 @@ export default function Leaderboard() {
     <>
       <PageTitle title="Leaderboard | HackMate" />
       <main className="page-main wrap leaderboard-page">
-        <PageIntro
-          eyebrow="COMMUNITY SPOTLIGHT"
-          title="Celebrate the doers."
-          description="Every prototype, new skill, and teammate helped along the way counts. Meet some of the builders showing up this month."
-        />
+        <section className="page-hero">
+          <HeroBackground />
+          <div className="page-hero__content">
+            <PageIntro
+              eyebrow="COMMUNITY SPOTLIGHT"
+              title="Celebrate the doers."
+              description="Every prototype, new skill, and teammate helped along the way counts. Meet some of the builders showing up this month."
+            />
+          </div>
+        </section>
         <section className="leaderboard-stat-grid" aria-label="Leaderboard highlights">
           <article><span>TOP BUILDER</span><strong>{people[0]?.name || "—"}</strong><small>{people[0]?.points || "0"} points</small></article>
           <article><span>ACTIVE THIS MONTH</span><strong>{people.length || 0}</strong><small>ranked creators</small></article>

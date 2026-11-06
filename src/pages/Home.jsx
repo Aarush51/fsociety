@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import EventCard from "../components/EventCard";
 import { Arrow } from "../components/Icons";
+import HeroBackground from "../components/HeroBackground";
 import PageTitle from "../components/PageTitle";
 import SectionHeading from "../components/SectionHeading";
 import useHackathonRatings from "../hooks/useHackathonRatings";
-import PatternWaves from "../components/PatternWaves";
 import { events } from "../lib/demoData";
 import { hackathonCardData } from "../lib/format";
 import { supabase } from "../lib/supabase";
@@ -66,7 +66,7 @@ export default function Home() {
       <PageTitle title="HackMate — Your people. Your project. Your moment." />
       <main>
         <section className="hero wrap">
-          <PatternWaves />
+          <HeroBackground />
           <div className="hero-copy">
             <p className="status-pill">
               <span className="online-dot" /> YOUR NEXT BIG THING STARTS HERE
@@ -240,3 +240,4 @@ export default function Home() {
     </>
   );
 }
+

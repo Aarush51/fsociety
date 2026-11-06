@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import Chat from "../components/Chat";
 import TeamJoinRequests from "../components/TeamJoinRequests";
 import { Arrow } from "../components/Icons";
+import HeroBackground from "../components/HeroBackground";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
 import { supabase, supabaseSetupMessage } from "../lib/supabase";
@@ -60,11 +61,16 @@ export default function Teams() {
     <>
       <PageTitle title="My teams | HackMate" />
       <main className="page-main wrap">
-        <PageIntro
-          eyebrow="YOUR TEAMS"
-          title="The people you build with."
-          description="Teams are formed when you register for a hackathon. Open one to see its members, pending invites and matching status."
-        />
+        <section className="page-hero">
+          <HeroBackground />
+          <div className="page-hero__content">
+            <PageIntro
+              eyebrow="YOUR TEAMS"
+              title="The people you build with."
+              description="Teams are formed when you register for a hackathon. Open one to see its members, pending invites and matching status."
+            />
+          </div>
+        </section>
         <p
           id="teams-status"
           className="hackathon-status"

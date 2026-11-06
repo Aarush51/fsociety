@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAdmin } from "../context/AdminContext";
 import { useAuth } from "../context/AuthContext";
@@ -6,6 +7,7 @@ import { useOrganization } from "../context/OrganizationContext";
 import { useTheme } from "../context/ThemeContext";
 import { headerLinks } from "../lib/access";
 import { Arrow, ThemeIcon } from "./Icons";
+import Logo from "./Logo";
 
 // The organizer role gets its own top navigation on every non-admin page. Each
 // entry points at an existing route; Manage Hackathons is the organizer's
@@ -26,6 +28,30 @@ export default function Header() {
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const navRef = useRef(null);
+
+  // The phone menu always closes on navigation so the new page starts clear.
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
+
+  // Escape and a click outside the navbar dismiss the open menu.
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const closeOnKey = (event) => {
+      if (event.key === "Escape") setMenuOpen(false);
+    };
+    const closeOutside = (event) => {
+      if (navRef.current && !navRef.current.contains(event.target)) setMenuOpen(false);
+    };
+    document.addEventListener("keydown", closeOnKey);
+    document.addEventListener("pointerdown", closeOutside);
+    return () => {
+      document.removeEventListener("keydown", closeOnKey);
+      document.removeEventListener("pointerdown", closeOutside);
+    };
+  }, [menuOpen]);
   const isAdminPage = pathname === "/admin" || pathname.startsWith("/admin/");
   // The app's organizer role check. Admins keep their previous header, and the
   // admin pages themselves always keep the role-based header.
@@ -44,6 +70,7 @@ export default function Header() {
   const handleLogout = async (event) => {
     event.preventDefault();
     try {
+      setMenuOpen(false);
       await signOut();
       navigate("/");
     } catch (error) {
@@ -53,14 +80,12 @@ export default function Header() {
 
   return (
     <header className="site-header">
-      <nav className="nav wrap" aria-label="Main navigation">
-        <Link to="/" className="brand" aria-label="HackMate home">
-          <span className="brand-mark">H</span>
-          <span>
-            hackmate<span className="brand-dot">.</span>
-          </span>
-        </Link>
-        <div className="nav-links">
+      <nav className="nav wrap" aria-label="Main navigation" ref={navRef}>
+        <Logo />
+        <div
+          id="primary-navigation"
+          className={`nav-links${menuOpen ? " is-open" : ""}`}
+        >
           {links.map((link) => {
             // The Huddle link carries a dot while friend requests are waiting.
             const waiting = link.to === "/huddle" ? incomingCount : 0;
@@ -115,6 +140,18 @@ export default function Header() {
             Join the community <Arrow diagonal />
           </Link>
         )}
+        <button
+          className="nav-menu-button"
+          type="button"
+          aria-expanded={menuOpen}
+          aria-controls="primary-navigation"
+          aria-label={menuOpen ? "Close navigation menu" : "Open navigation menu"}
+          onClick={() => setMenuOpen((open) => !open)}
+        >
+          <span />
+          <span />
+          <span />
+        </button>
       </nav>
     </header>
   );

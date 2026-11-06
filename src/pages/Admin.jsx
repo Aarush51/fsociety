@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { Arrow } from "../components/Icons";
+import HeroBackground from "../components/HeroBackground";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
 import StarRating from "../components/StarRating";
@@ -619,41 +620,46 @@ export default function Admin() {
     <>
       <PageTitle title="Admin · Organization review | HackMate" />
       <main className="page-main wrap">
-        <PageIntro
-          eyebrow={
-            showingHackathons
-              ? "ADMIN · HACKATHONS"
-              : showingFlagged
-              ? "ADMIN · FLAGGED USERS"
-              : showingTiers
-                ? "ADMIN · HACKATHON TIERS"
-                : showingReviews
-                  ? "ADMIN · EVENT REVIEWS"
-                  : "ADMIN · ORGANIZATION REVIEW"
-          }
-          title={
-            showingHackathons
-              ? "Review submitted hackathons."
-              : showingFlagged
-              ? "Members more than one person reported."
-              : showingTiers
-                ? "Approve the tier an organizer claimed."
-                : showingReviews
-                  ? "Moderate what participants write."
-                  : "Approve organizers before they host."
-          }
-          description={
-            showingHackathons
-              ? "Approve or reject hackathon submissions, set the final tier and leave an optional review note."
-              : showingFlagged
-              ? "A member appears here only when two or more different people reported them, so a single report never flags anyone. Every reason and reporter is listed."
-              : showingTiers
-                ? "Organizers claim a tier on the host form. Only the tier you approve here is shown on the event."
-                : showingReviews
-                  ? "Hidden reviews disappear from every public page while their author and the admins can still see them."
-                  : "Check the proof, the details and the signature. Approving unlocks hosting straight away; rejecting saves your reason for the organizer."
-          }
-        />
+        <section className="page-hero">
+          <HeroBackground />
+          <div className="page-hero__content">
+            <PageIntro
+              eyebrow={
+                showingHackathons
+                  ? "ADMIN · HACKATHONS"
+                  : showingFlagged
+                  ? "ADMIN · FLAGGED USERS"
+                  : showingTiers
+                    ? "ADMIN · HACKATHON TIERS"
+                    : showingReviews
+                      ? "ADMIN · EVENT REVIEWS"
+                      : "ADMIN · ORGANIZATION REVIEW"
+              }
+              title={
+                showingHackathons
+                  ? "Review submitted hackathons."
+                  : showingFlagged
+                  ? "Members more than one person reported."
+                  : showingTiers
+                    ? "Approve the tier an organizer claimed."
+                    : showingReviews
+                      ? "Moderate what participants write."
+                      : "Approve organizers before they host."
+              }
+              description={
+                showingHackathons
+                  ? "Approve or reject hackathon submissions, set the final tier and leave an optional review note."
+                  : showingFlagged
+                  ? "A member appears here only when two or more different people reported them, so a single report never flags anyone. Every reason and reporter is listed."
+                  : showingTiers
+                    ? "Organizers claim a tier on the host form. Only the tier you approve here is shown on the event."
+                    : showingReviews
+                      ? "Hidden reviews disappear from every public page while their author and the admins can still see them."
+                      : "Check the proof, the details and the signature. Approving unlocks hosting straight away; rejecting saves your reason for the organizer."
+              }
+            />
+          </div>
+        </section>
 
         <div className="organizer-toolbar admin-toolbar">
           <div className="filter-list" aria-label="Filter the admin queue">
