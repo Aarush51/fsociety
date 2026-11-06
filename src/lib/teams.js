@@ -3,8 +3,12 @@ import { supabase } from "./supabase";
 // Team helpers for the schema that is live today:
 //   teams          id (uuid), hackathon_id, name, description, max_members
 //   team_members   team_id, user_id, role, joined_at
-//   RPCs           list_hackathon_teams (public), create_hackathon_team,
-//                  join_hackathon_team (signed in)
+//   RPCs           list_hackathon_teams, create_hackathon_team,
+//                  request_to_join_team, get_my_join_requests,
+//                  list_team_join_requests, respond_to_join_request
+//
+// Joining is a request, not an instant add: request_to_join_team() creates a
+// pending row that the team leader accepts or declines.
 //
 // Every team already has a unique ID: its uuid. A short human code is derived
 // from the same uuid, so the code is stable and can be shared to find the team.
@@ -81,46 +85,69 @@ export async function createHackathonTeam({ hackathonId, name, description = "",
   return data; // the new team's uuid — its unique team ID
 }
 
-export async function joinHackathonTeam(teamId) {
-  if (!supabase) throw new Error("Supabase is not configured.");
-  const { error } = await supabase.rpc("join_hackathon_team", { p_team_id: teamId });
-  if (error) throw new Error(error.message || "You could not join that team.");
+function jsonRows(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.requests)) return data.requests;
+  return [];
 }
 
-function isMissingRpc(error) {
-  return (
-    error?.code === "PGRST202" ||
-    /could not find the function|function .* does not exist/i.test(String(error?.message || ""))
+// Creates a pending request for the leader to answer.
+export async function requestToJoinTeam(teamId) {
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { data, error } = await supabase.rpc("request_to_join_team", {
+    p_team_id: teamId,
+  });
+  if (error) throw new Error(error.message || "Your request could not be sent.");
+  return data;
+}
+
+// Team ids with a request still waiting for the leader's answer.
+export function pendingTeamIdsFrom(requests = []) {
+  return new Set(
+    (Array.isArray(requests) ? requests : [])
+      .filter((request) => request?.status === "pending")
+      .map((request) => request.team_id)
+      .filter(Boolean),
   );
 }
 
-// Join by the ID a team leader shared. join_team_by_code() resolves the uuid or
-// its short code inside the database and enforces the hackathon, registration,
-// suspension, membership and capacity rules, so its message is shown verbatim.
-// Older databases without that RPC fall back to the existing join call plus the
-// checks this page can do on its own.
-export async function joinTeamById({ hackathonId, teamCode, teams = [] }) {
+// The signed-in user's requests, used to keep join buttons in a pending state.
+export async function fetchMyJoinRequests() {
+  if (!supabase) return [];
+  const { data, error } = await supabase.rpc("get_my_join_requests");
+  if (error) throw new Error(error.message || "Your join requests could not be loaded.");
+  return jsonRows(data);
+}
+
+// Pending requests for one team. The RPC itself enforces leader-only access.
+export async function fetchTeamJoinRequests(teamId) {
+  if (!supabase) return [];
+  const { data, error } = await supabase.rpc("list_team_join_requests", {
+    p_team_id: teamId,
+  });
+  if (error) throw new Error(error.message || "Join requests could not be loaded.");
+  return jsonRows(data);
+}
+
+export async function respondToJoinRequest(requestId, accept) {
   if (!supabase) throw new Error("Supabase is not configured.");
+  const { data, error } = await supabase.rpc("respond_to_join_request", {
+    p_request_id: requestId,
+    p_accept: Boolean(accept),
+  });
+  if (error) throw new Error(error.message || "The request could not be updated.");
+  return data;
+}
+
+// Resolve the shared team ID against the hackathon's team list, then send the
+// request. The database still enforces capacity and membership rules.
+export async function requestJoinTeamByCode({ teamCode, teams = [] }) {
   const code = String(teamCode || "").trim();
   if (!code) throw new Error("Enter the team ID you were given.");
-
-  const { data, error } = await supabase.rpc("join_team_by_code", {
-    p_hackathon_id: hackathonId,
-    p_team_code: code,
-  });
-
-  if (!error) {
-    return { teamId: data?.id || "", teamName: data?.name || "", team: data || null };
-  }
-  if (!isMissingRpc(error)) {
-    throw new Error(error.message || "That team could not be joined.");
-  }
-
-  console.warn("join_team_by_code is missing; run the latest team migration.");
   const team = findTeamsByQuery(teams, code)[0];
   if (!team) throw new Error("No team in this hackathon uses that team ID.");
-  await joinHackathonTeam(team.id);
-  return { teamId: team.id, teamName: team.name, team: null };
+  await requestToJoinTeam(team.id);
+  return { teamId: team.id, teamName: team.name };
 }
 
 // Skill and interest matches from the database. Each row is only a team id,

@@ -3,9 +3,13 @@ import { Link } from "react-router-dom";
 import { initialsFromName, shortName } from "../lib/format";
 import {
   createHackathonTeam,
-  joinTeamById,
+  fetchMyJoinRequests,
+  findTeamsByQuery,
   memberCount,
   openSpots,
+  pendingTeamIdsFrom,
+  requestJoinTeamByCode,
+  requestToJoinTeam,
   suggestTeams,
   teamCodeFrom,
   teamSize,
@@ -115,6 +119,22 @@ export default function TeamFormation({ hackathon, userId, mySkills, teams, myTe
   // caller adds and the interests they share. No member identities are returned.
   const [suggestions, setSuggestions] = useState({ loading: false, rows: [], error: "" });
 
+  // Teams the caller already asked to join, so their buttons stay disabled.
+  const [pendingTeamIds, setPendingTeamIds] = useState(() => new Set());
+
+  const loadMyRequests = useCallback(async () => {
+    try {
+      const rows = await fetchMyJoinRequests();
+      setPendingTeamIds(pendingTeamIdsFrom(rows));
+    } catch (error) {
+      console.error("Could not load your join requests.", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadMyRequests();
+  }, [loadMyRequests]);
+
   const loadSuggestions = useCallback(async () => {
     if (!hackathon?.id) return;
     setSuggestions({ loading: true, rows: [], error: "" });
@@ -174,19 +194,18 @@ export default function TeamFormation({ hackathon, userId, mySkills, teams, myTe
   };
 
   const handleJoinSuggestion = (suggestion) =>
-    run(
-      () =>
-        joinTeamById({
-          hackathonId: hackathon.id,
-          teamCode: suggestion.team_id,
-          teams,
-        }),
-      `You joined “${suggestion.team_name}”.`,
-    );
+    run(async () => {
+      await requestToJoinTeam(suggestion.team_id);
+      await loadMyRequests();
+    }, `Request sent to “${suggestion.team_name}”. The team leader will accept or decline.`);
 
-  // Join by the ID a leader shared. There is no team directory here: the ID is
-  // resolved by the database, which also checks the hackathon, registration,
-  // existing membership and the team's size limit.
+  // The code typed into the join form may already have a pending request.
+  const resolvedTeam = joinCode.trim() ? findTeamsByQuery(teams, joinCode)[0] : null;
+  const pendingResolved = Boolean(resolvedTeam && pendingTeamIds.has(resolvedTeam.id));
+
+  // Ask to join by the ID a leader shared. There is no team directory here: the
+  // code is resolved against this hackathon's team list, then the database
+  // creates a pending request for the leader to answer.
   const handleJoinById = async (event) => {
     event.preventDefault();
     if (busy) return;
@@ -205,15 +224,15 @@ export default function TeamFormation({ hackathon, userId, mySkills, teams, myTe
     setBusy(true);
     setMessage({ text: "", error: false });
     try {
-      const joined = await joinTeamById({
-        hackathonId: hackathon.id,
+      const requested = await requestJoinTeamByCode({
         teamCode: joinCode,
         teams,
       });
       setJoinCode("");
+      await loadMyRequests();
       await onChanged();
       setMessage({
-        text: `You joined “${joined.teamName}” · team ID ${teamCodeFrom(joined.teamId)}.`,
+        text: `Request sent to “${requested.teamName}” · team ID ${teamCodeFrom(requested.teamId)}.`,
         error: false,
       });
     } catch (joinError) {
@@ -384,9 +403,18 @@ export default function TeamFormation({ hackathon, userId, mySkills, teams, myTe
           <p className="muted tiny">
             Ask the team leader for their team ID. You can paste it with or without the dash.
           </p>
+          {pendingResolved ? (
+            <p className="muted tiny">
+              You already have a pending request for “{resolvedTeam.name}”.
+            </p>
+          ) : null}
           <div className="org-form-actions">
-            <button className="button button-dark" type="submit" disabled={busy}>
-              {busy ? "Joining…" : "Join"}
+            <button
+              className="button button-dark"
+              type="submit"
+              disabled={busy || pendingResolved}
+            >
+              {pendingResolved ? "Request pending" : busy ? "Sending…" : "Send request"}
             </button>
             <button className="text-link" type="button" onClick={() => setChoice(null)}>
               Decide later
@@ -432,58 +460,61 @@ export default function TeamFormation({ hackathon, userId, mySkills, teams, myTe
           {!suggestions.loading && !suggestions.error ? (
             <div className="team-list" aria-live="polite">
               {suggestions.rows.length ? (
-                suggestions.rows.map((suggestion) => (
-                  <article className="team-card" key={suggestion.team_id}>
-                    <div className="team-card-heading">
-                      <div>
-                        <p className="eyebrow">MATCHED ON SKILLS</p>
-                        <h2>{suggestion.team_name}</h2>
+                suggestions.rows.map((suggestion) => {
+                  const pending = pendingTeamIds.has(suggestion.team_id);
+                  return (
+                    <article className="team-card" key={suggestion.team_id}>
+                      <div className="team-card-heading">
+                        <div>
+                          <p className="eyebrow">MATCHED ON SKILLS</p>
+                          <h2>{suggestion.team_name}</h2>
+                        </div>
+                        <span className="team-member-count">
+                          {suggestion.member_count} /{" "}
+                          {Number(suggestion.member_count) + Number(suggestion.spots_left)} members
+                        </span>
                       </div>
-                      <span className="team-member-count">
-                        {suggestion.member_count} /{" "}
-                        {Number(suggestion.member_count) + Number(suggestion.spots_left)} members
-                      </span>
-                    </div>
-                    <p className="team-description">
-                      {suggestion.spots_left}{" "}
-                      {Number(suggestion.spots_left) === 1 ? "spot is" : "spots are"} still open.
-                    </p>
-                    {suggestion.missing_skills?.length ? (
-                      <>
-                        <p className="eyebrow">SKILLS THEY NEED FROM YOU</p>
-                        <div className="skill-list">
-                          {suggestion.missing_skills.map((skill) => (
-                            <span className="skill" key={skill}>
-                              {skill}
-                            </span>
-                          ))}
-                        </div>
-                      </>
-                    ) : null}
-                    {suggestion.shared_interests?.length ? (
-                      <>
-                        <p className="eyebrow">SHARED INTERESTS</p>
-                        <div className="skill-list">
-                          {suggestion.shared_interests.map((interest) => (
-                            <span className="skill" key={interest}>
-                              {interest}
-                            </span>
-                          ))}
-                        </div>
-                      </>
-                    ) : null}
-                    <div className="team-card-actions">
-                      <button
-                        className="button button-dark"
-                        type="button"
-                        disabled={busy}
-                        onClick={() => handleJoinSuggestion(suggestion)}
-                      >
-                        {busy ? "Joining…" : "Join this team"}
-                      </button>
-                    </div>
-                  </article>
-                ))
+                      <p className="team-description">
+                        {suggestion.spots_left}{" "}
+                        {Number(suggestion.spots_left) === 1 ? "spot is" : "spots are"} still open.
+                      </p>
+                      {suggestion.missing_skills?.length ? (
+                        <>
+                          <p className="eyebrow">SKILLS THEY NEED FROM YOU</p>
+                          <div className="skill-list">
+                            {suggestion.missing_skills.map((skill) => (
+                              <span className="skill" key={skill}>
+                                {skill}
+                              </span>
+                            ))}
+                          </div>
+                        </>
+                      ) : null}
+                      {suggestion.shared_interests?.length ? (
+                        <>
+                          <p className="eyebrow">SHARED INTERESTS</p>
+                          <div className="skill-list">
+                            {suggestion.shared_interests.map((interest) => (
+                              <span className="skill" key={interest}>
+                                {interest}
+                              </span>
+                            ))}
+                          </div>
+                        </>
+                      ) : null}
+                      <div className="team-card-actions">
+                        <button
+                          className="button button-dark"
+                          type="button"
+                          disabled={busy || pending}
+                          onClick={() => handleJoinSuggestion(suggestion)}
+                        >
+                          {pending ? "Request pending" : busy ? "Sending…" : "Request to join"}
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })
               ) : (
                 <p className="team-empty">
                   No team fits your skills yet. Make one and share its team ID so others can join

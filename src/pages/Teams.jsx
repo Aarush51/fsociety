@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import Chat from "../components/Chat";
+import TeamJoinRequests from "../components/TeamJoinRequests";
 import { Arrow } from "../components/Icons";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
@@ -14,6 +15,13 @@ export default function Teams() {
   const [loading, setLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
   const [openChatId, setOpenChatId] = useState("");
+  const [joinCounts, setJoinCounts] = useState({});
+
+  const handleJoinCountChange = useCallback((teamId, count) => {
+    setJoinCounts((current) =>
+      current[teamId] === count ? current : { ...current, [teamId]: count },
+    );
+  }, []);
 
   const loadTeams = useCallback(async () => {
     if (!supabase) {
@@ -92,9 +100,19 @@ export default function Teams() {
                     </p>
                     <h2>{team.name}</h2>
                   </div>
-                  <span className="team-member-count">
-                    {memberCount} / {size} members
-                  </span>
+                  <div className="filter-list">
+                    <span className="team-member-count">
+                      {memberCount} / {size} members
+                    </span>
+                    {team.role === "leader" && joinCounts[team.id] ? (
+                      <span
+                        className="team-member-count"
+                        title="Pending join requests"
+                      >
+                        {joinCounts[team.id]} pending
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
                 <p className="team-description">
                   {team.role === "leader" ? "You lead this team." : "You’re a member of this team."}{" "}
@@ -121,6 +139,13 @@ export default function Teams() {
                     </button>
                   </div>
                 </div>
+                {team.role === "leader" ? (
+                  <TeamJoinRequests
+                    teamId={team.id}
+                    teamName={team.name}
+                    onCountChange={handleJoinCountChange}
+                  />
+                ) : null}
                 {openChatId === team.id ? (
                   <Chat
                     teamId={team.id}

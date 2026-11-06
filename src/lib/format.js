@@ -99,6 +99,7 @@ export function safeRedirectTarget(target) {
       "dashboard",
       "profile",
       "huddle",
+      "results",
       "teams",
       "ideas",
       "organizer",

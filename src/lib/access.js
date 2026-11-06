@@ -32,6 +32,7 @@ export function headerLinks({ signedIn, mode, hasOrganization, isAdmin }) {
       { label: "Hackathons", to: "/hackathons" },
       { label: "Idea generator", to: "/ideas" },
       { label: "Leaderboard", to: "/leaderboard" },
+      { label: "Results", to: "/results" },
       { label: "My teams", to: "/teams" },
       { label: "Dashboard", to: "/dashboard" },
       { label: "The Huddle", to: "/huddle" },

@@ -2432,3 +2432,116 @@ body, .hm-app-shell {
     transition-duration: .01ms !important;
   }
 }
+
+/* ----------------------------------------------------- published results ---- */
+
+/* `.hm-route-content > main` widens routed mains to 100%, which drops the
+   shared page gutters. Keep this page inside the normal centered container. */
+.page-main.results-page {
+  width: min(calc(100% - var(--space-xl)), 1120px);
+  margin-inline: auto;
+}
+
+@media (max-width: 900px) {
+  .page-main.results-page { width: min(calc(100% - 32px), 1120px); }
+}
+
+@media (max-width: 650px) {
+  .page-main.results-page { width: calc(100% - 24px); }
+}
+
+.results-podium {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.results-podium-card {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  padding: 20px;
+}
+.results-podium-card .eyebrow {
+  margin: 0;
+  font-size: 8px;
+}
+.results-podium-card[data-place="1"] {
+  border-color: rgba(140, 175, 61, .42);
+  background: linear-gradient(145deg, rgba(200, 255, 77, .16), var(--surface) 72%);
+}
+.results-podium-team {
+  margin: 2px 0 0;
+  font-size: clamp(19px, 2.2vw, 26px);
+  line-height: 1.1;
+  letter-spacing: -.05em;
+  overflow-wrap: anywhere;
+}
+.results-podium-event {
+  margin: 0;
+}
+.results-place-list {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.results-place-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 16px;
+  padding: 13px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.results-place-rank {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.results-place-row strong {
+  font-size: 15px;
+  letter-spacing: -.02em;
+  overflow-wrap: anywhere;
+}
+.results-mentions {
+  margin-top: 20px;
+}
+.results-mentions h3 {
+  margin: 0 0 10px;
+  font-size: 16px;
+  letter-spacing: -.03em;
+}
+.results-mention-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.results-mention-list li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--surface-muted);
+}
+.results-mention-list li span {
+  color: var(--primary);
+}
+.results-mention-list strong {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 650px) {
+  .results-podium { grid-template-columns: minmax(0, 1fr); }
+}
