@@ -202,7 +202,7 @@ export async function loadFlaggedUsers() {
 
   const { data: profiles, error: profilesError } = await supabase
     .from("profiles")
-    .select("id, full_name, username")
+    .select("id, full_name, username, suspended")
     .in("id", reportedUserIds);
   if (profilesError) throw profilesError;
 
@@ -214,11 +214,25 @@ export async function loadFlaggedUsers() {
       user_id: userId,
       full_name: profile.full_name || "A HackMate member",
       username: profile.username || "",
+      suspended: profile.suspended === true,
       report_count: rows.length,
       reporter_count: new Set(rows.map((row) => row.reporter_id)).size,
       reports: rows,
     };
   });
+}
+
+export async function setUserSuspended(userId, suspended) {
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({ suspended: Boolean(suspended) })
+    .eq("id", userId)
+    .select("id, suspended")
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("The account status was not updated. The database did not return the profile.");
+  return data;
 }
 
 // Hide or unhide one event review. Only admins pass Row Level Security and the

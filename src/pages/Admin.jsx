@@ -13,6 +13,7 @@ import {
   loadOrganizationsForReview,
   reviewHackathon,
   reviewOrganization,
+  setUserSuspended,
   setEventReviewHidden,
 } from "../lib/admin";
 import { formatEventDate, formatNumber } from "../lib/format";
@@ -169,7 +170,7 @@ function TierCard({ event, busy, onDecide }) {
 }
 
 // One member with two or more report rows, including every report and reporter count.
-function FlaggedCard({ flagged }) {
+function FlaggedCard({ flagged, busy, onToggleSuspension }) {
   const reporterCount = Number(flagged.reporter_count) || 0;
   const reportCount = Number(flagged.report_count) || 0;
   const reports = Array.isArray(flagged.reports) ? flagged.reports : [];
@@ -184,9 +185,12 @@ function FlaggedCard({ flagged }) {
           </p>
           <h2>{flagged.full_name || "A HackMate member"}</h2>
         </div>
-        <span className="admin-badge admin-badge-rejected">
-          {reportCount} {reportCount === 1 ? "report" : "reports"}
-        </span>
+        <div className="admin-card-badges">
+          {flagged.suspended ? <span className="admin-badge admin-badge-suspended">Suspended</span> : null}
+          <span className="admin-badge admin-badge-rejected">
+            {reportCount} {reportCount === 1 ? "report" : "reports"}
+          </span>
+        </div>
       </header>
 
       <dl className="admin-facts">
@@ -203,6 +207,17 @@ function FlaggedCard({ flagged }) {
           </Fact>
         ))}
       </dl>
+
+      <div className="admin-actions">
+        <button
+          className={`button ${flagged.suspended ? "button-outline" : "button-dark"}`}
+          type="button"
+          disabled={busy}
+          onClick={() => onToggleSuspension(flagged)}
+        >
+          {busy ? "Saving…" : flagged.suspended ? "Unban" : "Ban"}
+        </button>
+      </div>
     </article>
   );
 }
@@ -366,6 +381,7 @@ export default function Admin() {
   const [flaggedUsers, setFlaggedUsers] = useState(null);
   const [flaggedLoading, setFlaggedLoading] = useState(false);
   const [flaggedError, setFlaggedError] = useState(null);
+  const [suspensionBusyId, setSuspensionBusyId] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -550,6 +566,29 @@ export default function Admin() {
     }
   };
 
+  const toggleUserSuspension = async (flaggedUser) => {
+    const suspended = !flaggedUser.suspended;
+    setSuspensionBusyId(flaggedUser.user_id);
+    setMessage({ text: "", error: false });
+    try {
+      await setUserSuspended(flaggedUser.user_id, suspended);
+      await loadFlagged();
+      setMessage({
+        text: suspended
+          ? `${flaggedUser.full_name || "The user"} has been suspended.`
+          : `${flaggedUser.full_name || "The user"} has been unbanned.`,
+        error: false,
+      });
+    } catch (requestError) {
+      setMessage({
+        text: requestError.message || "The account status could not be updated. Please try again.",
+        error: true,
+      });
+    } finally {
+      setSuspensionBusyId(null);
+    }
+  };
+
   const statusText = showingHackathons
     ? ""
     : showingFlagged
@@ -648,7 +687,12 @@ export default function Admin() {
           <div className="admin-list" aria-busy={flaggedLoading}>
             {flaggedLoading && !flaggedUsers ? null : (flaggedUsers || []).length ? (
               flaggedUsers.map((flaggedUser) => (
-                <FlaggedCard key={flaggedUser.user_id} flagged={flaggedUser} />
+                <FlaggedCard
+                  key={flaggedUser.user_id}
+                  flagged={flaggedUser}
+                  busy={suspensionBusyId === flaggedUser.user_id}
+                  onToggleSuspension={toggleUserSuspension}
+                />
               ))
             ) : (
               <p className="dashboard-empty">

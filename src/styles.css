@@ -1301,12 +1301,14 @@ html[data-theme="dark"] .review-form textarea { border-color: var(--line); backg
 html[data-theme="dark"] .review-form textarea:focus { border-color: var(--primary); outline-color: rgba(163,160,255,.22); }
 .admin-card { display: grid; gap: 14px; padding: 20px 22px; border: 1px solid var(--line); border-radius: 20px; background: rgba(255,255,255,.9); box-shadow: 0 8px 28px rgba(26,33,62,.045); }
 .admin-card-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.admin-card-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .admin-card-head .eyebrow { margin: 0; }
 .admin-card-head h2 { margin: 7px 0 0; font-size: 17px; letter-spacing: -.03em; }
 .admin-badge { padding: 6px 11px; border-radius: 999px; font-size: 9px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 .admin-badge-pending { background: #fdf3d9; color: #8a6a12; }
 .admin-badge-approved { background: #eff6dc; color: #587a27; }
 .admin-badge-rejected { background: #fbecea; color: #9d3027; }
+.admin-badge-suspended { background: #fbecea; color: #9d3027; }
 .admin-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); gap: 12px 18px; margin: 0; }
 .admin-facts dt { color: #77796e; font-size: 8px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .admin-facts dd { margin: 4px 0 0; font-size: 11px; line-height: 1.65; word-break: break-word; }
@@ -1329,6 +1331,7 @@ html[data-theme="dark"] .admin-review-note { background: #3a292e; color: #ffaaa8
 html[data-theme="dark"] .admin-badge-pending { background: #3b3423; color: #f0d08a; }
 html[data-theme="dark"] .admin-badge-approved { background: #303c2a; color: #d3f79b; }
 html[data-theme="dark"] .admin-badge-rejected { background: #3a292e; color: #ffaaa8; }
+html[data-theme="dark"] .admin-badge-suspended { background: #3a292e; color: #ffaaa8; }
 html[data-theme="dark"] .admin-reject { border-color: var(--line); background: var(--surface-muted); }
 html[data-theme="dark"] .admin-reject textarea { border-color: var(--line); background: var(--surface); color: var(--foreground); }
 
