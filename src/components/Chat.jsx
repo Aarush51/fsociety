@@ -18,11 +18,27 @@ const MESSAGE_LIMIT_NOTE = "The newest 100 messages are shown.";
 
 // Canonical lowercase uuid strings sort the same way Postgres orders uuid values,
 // so both members build the same friend_pair key regardless of who opens it.
-function friendPairKey(a, b) {
+export function friendPairKey(a, b) {
   const left = String(a || "").toLowerCase();
   const right = String(b || "").toLowerCase();
   if (!left || !right || left === right) return "";
   return left < right ? `${left}:${right}` : `${right}:${left}`;
+}
+
+export async function sendChatMessage({ senderId, teamId = null, friendPair = null, body }) {
+  if (!supabase) throw new Error(supabaseSetupMessage);
+  const { data, error } = await supabase
+    .from("messages")
+    .insert({
+      sender_id: senderId,
+      team_id: teamId,
+      friend_pair: teamId ? null : friendPair,
+      body,
+    })
+    .select("id, sender_id, body, created_at")
+    .single();
+  if (error) throw error;
+  return data;
 }
 
 function timeLabel(value) {
@@ -94,6 +110,11 @@ export default function Chat({
       return message?.sender_id === user?.id ? "You" : "A HackMate member";
     },
     [names, user?.id],
+  );
+
+  const senderFriendCode = useCallback(
+    (senderId) => people.find((person) => person?.id === senderId)?.friend_code || "",
+    [people],
   );
 
   const load = useCallback(async () => {
@@ -170,6 +191,7 @@ export default function Chat({
                   {
                     id: row.id,
                     sender_id: row.sender_id,
+                    sender_friend_code: senderFriendCode(row.sender_id),
                     body: row.body,
                     created_at: row.created_at,
                   },
@@ -182,7 +204,7 @@ export default function Chat({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [mode, pairKey, teamId]);
+  }, [mode, pairKey, senderFriendCode, teamId]);
 
   useEffect(() => {
     const node = threadRef.current;
@@ -212,34 +234,33 @@ export default function Chat({
     }
 
     setSending(true);
-    const { data, error } = await supabase
-      .from("messages")
-      .insert({
-        sender_id: user.id,
-        team_id: teamId || null,
-        friend_pair: teamId ? null : pairKey,
+    try {
+      const data = await sendChatMessage({
+        senderId: user.id,
+        teamId: teamId || null,
+        friendPair: pairKey || null,
         body,
-      })
-      .select("id, sender_id, body, created_at")
-      .single();
-
-    if (error) {
+      });
+      const message = {
+        ...data,
+        sender_friend_code: data.sender_friend_code || senderFriendCode(user.id) || undefined,
+      };
+      setDraft("");
+      setStatus({ text: "", error: false });
+      setMessages((current) =>
+        current.some((item) => item.id === message.id) ? current : [...current, message],
+      );
+      if (!message.sender_friend_code) await load();
+    } catch (error) {
       console.error("Could not send this message:", error.message, {
         code: error.code,
         details: error.details,
         hint: error.hint,
       });
       setStatus({ text: error.message || "That message could not be sent.", error: true });
+    } finally {
       setSending(false);
-      return;
     }
-
-    setDraft("");
-    setStatus({ text: "", error: false });
-    setMessages((current) =>
-      current.some((message) => message.id === data.id) ? current : [...current, data],
-    );
-    setSending(false);
   };
 
   return (
