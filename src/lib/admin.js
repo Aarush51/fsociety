@@ -170,21 +170,55 @@ export async function loadEventReviewsForModeration() {
   return Array.isArray(data) ? data : [];
 }
 
-// Members reported by two or more different people. The RPC is SECURITY DEFINER
-// with its own is_admin() check, so a non-admin gets an exception, not data.
+// Members with at least two report rows. Profiles are fetched separately so
+// both the reported user and report details remain unambiguous in PostgREST.
 export async function loadFlaggedUsers() {
   if (!supabase) throw new Error("Supabase is not configured.");
-  const { data, error } = await supabase.rpc("list_flagged_users");
+  const { data, error } = await supabase
+    .from("reports")
+    .select("id, reporter_id, reported_user_id, reason, context, created_at")
+    .order("created_at", { ascending: false });
   if (error) {
     if (error.code === "42501") {
       throw new Error(
         "Only admins can read flagged users. Run the admin SQL migration and check your row in public.admins.",
       );
     }
-    if (error.code === "PGRST202" || error.code === "42883") return [];
     throw error;
   }
-  return Array.isArray(data) ? data : [];
+
+  const reports = Array.isArray(data) ? data : [];
+  const grouped = new Map();
+  reports.forEach((report) => {
+    const rows = grouped.get(report.reported_user_id) || [];
+    rows.push(report);
+    grouped.set(report.reported_user_id, rows);
+  });
+
+  const reportedUserIds = [...grouped.entries()]
+    .filter(([, rows]) => rows.length >= 2)
+    .map(([userId]) => userId);
+  if (!reportedUserIds.length) return [];
+
+  const { data: profiles, error: profilesError } = await supabase
+    .from("profiles")
+    .select("id, full_name, username")
+    .in("id", reportedUserIds);
+  if (profilesError) throw profilesError;
+
+  const profilesById = new Map((profiles || []).map((profile) => [profile.id, profile]));
+  return reportedUserIds.map((userId) => {
+    const rows = grouped.get(userId) || [];
+    const profile = profilesById.get(userId) || {};
+    return {
+      user_id: userId,
+      full_name: profile.full_name || "A HackMate member",
+      username: profile.username || "",
+      report_count: rows.length,
+      reporter_count: new Set(rows.map((row) => row.reporter_id)).size,
+      reports: rows,
+    };
+  });
 }
 
 // Hide or unhide one event review. Only admins pass Row Level Security and the

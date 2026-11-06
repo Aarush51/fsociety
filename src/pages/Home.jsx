@@ -2,12 +2,11 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import EventCard from "../components/EventCard";
 import { Arrow } from "../components/Icons";
-import LeaderboardRows from "../components/LeaderboardRows";
 import PageTitle from "../components/PageTitle";
 import SectionHeading from "../components/SectionHeading";
 import useHackathonRatings from "../hooks/useHackathonRatings";
 import PatternWaves from "../components/PatternWaves";
-import { events, leaderboard } from "../lib/demoData";
+import { events } from "../lib/demoData";
 import { hackathonCardData } from "../lib/format";
 import { supabase } from "../lib/supabase";
 
@@ -15,23 +14,11 @@ const HOME_HACKATHON_FIELDS =
   "id, slug, title, organizer, category, location, prize, registration_deadline, starts_at, ends_at, status, venue_name, city, maps_url, capacity, price";
 
 
-function builderInitials(name) {
-  return (name || "?")
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
-}
-
 export default function Home() {
   const [homeEvents, setHomeEvents] = useState(events);
   const ratings = useHackathonRatings(homeEvents);
   const [eventStatus, setEventStatus] = useState("Loading hackathons…");
   const [eventsBusy, setEventsBusy] = useState(true);
-  const [leaderboardPeople, setLeaderboardPeople] = useState(leaderboard);
-  const [leaderboardStatus, setLeaderboardStatus] = useState("Loading leaderboard…");
 
   useEffect(() => {
     if (!supabase) {
@@ -67,52 +54,6 @@ export default function Home() {
       })
       .finally(() => {
         if (active) setEventsBusy(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!supabase) {
-      setLeaderboardStatus("Sample leaderboard.");
-      return undefined;
-    }
-
-    let active = true;
-    supabase
-      .rpc("get_public_leaderboard")
-      .then(({ data, error }) => {
-        if (!active) return;
-        if (error) throw error;
-        if (!data?.length) {
-          setLeaderboardPeople(leaderboard);
-          setLeaderboardStatus("No live rankings yet; showing sample members.");
-          return;
-        }
-        const people = data.map((person, index) => ({
-          rank: String(index + 1).padStart(2, "0"),
-          initials: builderInitials(person.full_name),
-          name: person.full_name,
-          school: `${person.institution || person.username}${person.reputation ? ` · ${Number(person.reputation).toFixed(1)} ★` : ""}`,
-          points: new Intl.NumberFormat().format(Number(person.coins) || 0),
-          score: Number(person.coins) || 0,
-          isDemo: Boolean(person.is_demo),
-          color: ["lime", "blue", "peach", "lavender"][index % 4],
-        }));
-        setLeaderboardPeople(people);
-        setLeaderboardStatus(
-          people.every((person) => person.isDemo)
-            ? "Demo leaderboard data. Real member rankings will appear after users join."
-            : `${people.length} builders ranked by earned coins.`,
-        );
-      })
-      .catch((error) => {
-        if (!active) return;
-        console.error("Could not load the leaderboard.", error);
-        setLeaderboardPeople(leaderboard);
-        setLeaderboardStatus("Live rankings are unavailable; showing sample members.");
       });
 
     return () => {
@@ -282,43 +223,6 @@ export default function Home() {
               {homeEvents.map((event) => (
                 <EventCard event={{ ...event, rating: ratings[event.uuid] }} key={event.id} />
               ))}
-            </div>
-          </div>
-        </section>
-
-        <section id="leaderboard" className="section leaderboard-section">
-          <div className="wrap leaderboard-layout">
-            <div>
-              <p className="eyebrow light-eyebrow">A LITTLE FRIENDLY COMPETITION</p>
-              <h2>
-                Show up.
-                <br />
-                Make stuff.
-                <br />
-                <span>Your name goes here.</span>
-              </h2>
-              <p className="leaderboard-copy">
-                Every project, new skill, and teammate helped along the way counts. Here's to the
-                students making moves this month.
-              </p>
-              <Link to="/leaderboard" className="button button-lime">
-                Visit the leaderboard <Arrow />
-              </Link>
-            </div>
-            <div className="leaderboard-card">
-              <div className="leaderboard-heading">
-                <div>
-                  <strong>Campus creators</strong>
-                  <p className="tiny muted">The people doing the thing</p>
-                </div>
-                <span className="dark-chip">ALL-TIME</span>
-              </div>
-              <p className="hackathon-status" role="status" aria-live="polite">
-                {leaderboardStatus}
-              </p>
-              <ol className="rank-list" data-live-leaderboard="">
-                <LeaderboardRows dark people={leaderboardPeople} />
-              </ol>
             </div>
           </div>
         </section>

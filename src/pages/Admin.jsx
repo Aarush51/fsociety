@@ -4,6 +4,7 @@ import { Arrow } from "../components/Icons";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
 import StarRating from "../components/StarRating";
+import AdminHackathons from "../components/AdminHackathons";
 import { useAdmin } from "../context/AdminContext";
 import {
   loadEventReviewsForModeration,
@@ -21,6 +22,7 @@ const TABS = [
   { value: "pending", label: "Pending" },
   { value: "approved", label: "Approved" },
   { value: "rejected", label: "Rejected" },
+  { value: "hackathons", label: "Hackathons" },
   { value: "tiers", label: "Tiers" },
   { value: "reviews", label: "Reviews" },
   { value: "flagged", label: "Flagged users" },
@@ -166,21 +168,19 @@ function TierCard({ event, busy, onDecide }) {
   );
 }
 
-// One member reported by two or more different people: the count, every reason,
-// and who filed each report (with their short context and the date).
+// One member with two or more report rows, including every report and reporter count.
 function FlaggedCard({ flagged }) {
-  const reporters = Array.isArray(flagged.reporters) ? flagged.reporters : [];
-  const reasons = Array.isArray(flagged.reasons) ? flagged.reasons : [];
   const reporterCount = Number(flagged.reporter_count) || 0;
   const reportCount = Number(flagged.report_count) || 0;
+  const reports = Array.isArray(flagged.reports) ? flagged.reports : [];
 
   return (
     <article className="admin-card">
       <header className="admin-card-head">
         <div>
           <p className="eyebrow">
-            REPORTED BY {reporterCount} {reporterCount === 1 ? "PERSON" : "PEOPLE"} · ID{" "}
-            {flagged.friend_code || "—"}
+            @{flagged.username || "unknown"} · {reporterCount}{" "}
+            {reporterCount === 1 ? "DISTINCT REPORTER" : "DISTINCT REPORTERS"}
           </p>
           <h2>{flagged.full_name || "A HackMate member"}</h2>
         </div>
@@ -189,21 +189,17 @@ function FlaggedCard({ flagged }) {
         </span>
       </header>
 
-      <p className="admin-description">
-        <strong>Reasons:</strong> {reasons.length ? reasons.join(" · ") : "No reason recorded."}
-      </p>
-
       <dl className="admin-facts">
-        {reporters.map((entry, index) => (
+        {reports.map((report, index) => (
           <Fact
-            key={`${entry.reporter_id}-${index}`}
-            label={`${entry.reporter_name} · ${formatEventDate(entry.created_at, {
+            key={`${report.id || report.reporter_id}-${index}`}
+            label={`${formatEventDate(report.created_at, {
               dateStyle: "medium",
               timeStyle: "short",
             })}`}
           >
-            {entry.reason}
-            {entry.context ? <span className="muted tiny"> — {entry.context}</span> : null}
+            {report.reason || "No reason recorded."}
+            {report.context ? <span className="muted tiny"> — {report.context}</span> : null}
           </Fact>
         ))}
       </dl>
@@ -530,6 +526,7 @@ export default function Admin() {
   const showingReviews = tab === "reviews";
   const showingTiers = tab === "tiers";
   const showingFlagged = tab === "flagged";
+  const showingHackathons = tab === "hackathons";
 
   const toggleReview = async (reviewRow) => {
     setTogglingId(reviewRow.id);
@@ -553,7 +550,9 @@ export default function Admin() {
     }
   };
 
-  const statusText = showingFlagged
+  const statusText = showingHackathons
+    ? ""
+    : showingFlagged
     ? flaggedLoading
       ? "Loading flagged users…"
       : flaggedError
@@ -583,7 +582,9 @@ export default function Admin() {
       <main className="page-main wrap">
         <PageIntro
           eyebrow={
-            showingFlagged
+            showingHackathons
+              ? "ADMIN · HACKATHONS"
+              : showingFlagged
               ? "ADMIN · FLAGGED USERS"
               : showingTiers
                 ? "ADMIN · HACKATHON TIERS"
@@ -592,7 +593,9 @@ export default function Admin() {
                   : "ADMIN · ORGANIZATION REVIEW"
           }
           title={
-            showingFlagged
+            showingHackathons
+              ? "Review submitted hackathons."
+              : showingFlagged
               ? "Members more than one person reported."
               : showingTiers
                 ? "Approve the tier an organizer claimed."
@@ -601,7 +604,9 @@ export default function Admin() {
                   : "Approve organizers before they host."
           }
           description={
-            showingFlagged
+            showingHackathons
+              ? "Approve or reject hackathon submissions, set the final tier and leave an optional review note."
+              : showingFlagged
               ? "A member appears here only when two or more different people reported them, so a single report never flags anyone. Every reason and reporter is listed."
               : showingTiers
                 ? "Organizers claim a tier on the host form. Only the tier you approve here is shown on the event."
@@ -621,7 +626,8 @@ export default function Admin() {
                 key={option.value}
                 onClick={() => setTab(option.value)}
               >
-                {option.label} ({counts[option.value]})
+                {option.label}
+                {counts[option.value] !== undefined ? ` (${counts[option.value]})` : ""}
               </button>
             ))}
           </div>
@@ -636,7 +642,9 @@ export default function Admin() {
           {statusText}
         </p>
 
-        {showingFlagged ? (
+        {showingHackathons ? (
+          <AdminHackathons />
+        ) : showingFlagged ? (
           <div className="admin-list" aria-busy={flaggedLoading}>
             {flaggedLoading && !flaggedUsers ? null : (flaggedUsers || []).length ? (
               flaggedUsers.map((flaggedUser) => (
@@ -644,8 +652,7 @@ export default function Admin() {
               ))
             ) : (
               <p className="dashboard-empty">
-                No one has been reported by two different people yet. A member is only flagged once
-                two different reporters have filed a report.
+                No user has at least two reports yet.
               </p>
             )}
           </div>
