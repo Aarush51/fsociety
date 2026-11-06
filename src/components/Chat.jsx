@@ -72,6 +72,8 @@ export default function Chat({
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [copiedFriendCode, setCopiedFriendCode] = useState("");
+  const [copyError, setCopyError] = useState(null);
 
   const threadRef = useRef(null);
 
@@ -187,6 +189,18 @@ export default function Chat({
     if (node) node.scrollTop = node.scrollHeight;
   }, [messages.length]);
 
+  const copyFriendCode = async (friendCode) => {
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard access is unavailable in this browser.");
+      await navigator.clipboard.writeText(friendCode);
+      setCopiedFriendCode(friendCode);
+      setCopyError(null);
+    } catch (error) {
+      setCopiedFriendCode("");
+      setCopyError({ friendCode, message: error.message || "The friend code could not be copied." });
+    }
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     const body = draft.trim();
@@ -282,7 +296,29 @@ export default function Chat({
                 key={message.id}
               >
                 <div className="chat-message-top">
-                  <strong>{senderName(message)}</strong>
+                  <strong>
+                    {senderName(message)}
+                    {teamId && message.sender_friend_code ? (
+                      <>
+                        {" "}
+                        <button
+                          className="chat-sender-id"
+                          type="button"
+                          title={`Copy friend code: ${message.sender_friend_code}`}
+                          aria-label={`Copy friend code: ${message.sender_friend_code}`}
+                          onClick={() => copyFriendCode(message.sender_friend_code)}
+                        >
+                          {message.sender_friend_code}
+                        </button>
+                        {copiedFriendCode === message.sender_friend_code ? (
+                          <span className="chat-copy-feedback" aria-live="polite">Copied</span>
+                        ) : null}
+                        {copyError?.friendCode === message.sender_friend_code ? (
+                          <span className="chat-copy-error" role="alert">{copyError.message}</span>
+                        ) : null}
+                      </>
+                    ) : null}
+                  </strong>
                   <small>
                     <time dateTime={message.created_at || undefined}>
                       {timeLabel(message.created_at)}
