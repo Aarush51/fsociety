@@ -24,6 +24,7 @@ import OrganizerDashboard from "./pages/OrganizerDashboard";
 import OrganizerHostHackathon from "./pages/OrganizerHostHackathon";
 import OrganizerRegistrations from "./pages/OrganizerRegistrations";
 import Profile from "./pages/Profile";
+import Results from "./pages/Results";
 import Signup from "./pages/Signup";
 import Teams from "./pages/Teams";
 
@@ -58,6 +59,14 @@ export default function App() {
                     }
                   />
                   <Route path="leaderboard" element={<Leaderboard />} />
+                  <Route
+                    path="results"
+                    element={
+                      <ProtectedRoute>
+                        <Results />
+                      </ProtectedRoute>
+                    }
+                  />
                   <Route
                     path="dashboard"
                     element={
@@ -94,6 +103,18 @@ export default function App() {
                       </ProtectedRoute>
                     }
                   />
+                  {/* Manage Hackathons: the existing organizer page component,
+                      without its dashboard stats and shortcuts. */}
+                  <Route
+                    path="organizer/hackathons"
+                    element={
+                      <ProtectedRoute>
+                        <OrganizerRoute>
+                          <OrganizerDashboard listOnly />
+                        </OrganizerRoute>
+                      </ProtectedRoute>
+                    }
+                  />
                   <Route
                     path="organizer/registrations"
                     element={
@@ -104,8 +125,8 @@ export default function App() {
                       </ProtectedRoute>
                     }
                   />
-                  {/* Organizer Profile lives under /organizer/ so the sidebar layout
-                      from Layout.jsx (which keys off the /organizer prefix) stays put. */}
+                  {/* Organizer Profile reuses the existing profile page under the
+                      organizer guard. */}
                   <Route
                     path="organizer/profile"
                     element={
