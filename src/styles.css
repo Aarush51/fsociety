@@ -246,6 +246,12 @@ h1, h2, h3 { font-family: Manrope, "DM Sans", sans-serif; }
 .team-reputation small { color: #818278; font-size: 8px; font-weight: 400; }
 .team-card-actions { display: flex; justify-content: flex-end; margin-top: 16px; }
 .team-card-actions .button { min-height: 38px; padding-inline: 17px; font-size: 10px; }
+/* Leader-only join requests, shown on the leader's My teams entry. */
+.team-join-requests { display: grid; gap: 10px; margin-top: 20px; }
+.team-join-requests .team-card-heading { align-items: flex-start; }
+.team-join-requests .team-card-heading h2 { font-size: 15px; }
+.team-join-requests .team-member { grid-template-columns: auto minmax(0, 1fr); }
+.team-join-requests .team-member > .filter-list { grid-column: 1 / -1; justify-content: flex-end; }
 .team-empty { margin: 0; padding: 26px; border: 1px dashed rgba(23,25,20,.2); border-radius: 18px; color: #686a61; font-size: 12px; text-align: center; }
 .team-empty-action { display: grid; justify-items: center; gap: 14px; }
 .team-empty-action p { margin: 0; }
@@ -339,6 +345,7 @@ h1, h2, h3 { font-family: Manrope, "DM Sans", sans-serif; }
 .leaderboard-aside h2 { margin: 16px 0 0; font-size: 21px; letter-spacing: -.04em; }
 .leaderboard-aside > p { margin: 10px 0 19px; color: rgba(255,255,255,.6); font-size: 11px; line-height: 1.8; }
 .shortcut-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 27px; }
+.organizer-shortcuts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .dashboard-greeting { display: flex; align-items: center; gap: 15px; margin-top: 24px; }
 .dashboard-greeting .button { margin-left: auto; flex: 0 0 auto; }
 .dashboard-greeting .eyebrow { margin: 0; }

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // The generator's idea display, shared with the Dashboard so a saved idea is
 // shown in exactly one way. Everything here reuses the existing stylesheet:
@@ -14,6 +14,27 @@ const list = (value) =>
   (Array.isArray(value) ? value : [])
     .map((item) => text(item))
     .filter(Boolean);
+
+export function ideaShareText(idea) {
+  const title = text(idea?.title) || "Saved idea";
+  const description = (text(idea?.solution) || text(idea?.problem)).slice(0, 400);
+  const pros = list(idea?.pros).length
+    ? list(idea.pros)
+    : [...list(idea?.key_features), text(idea?.why_it_fits)].filter(Boolean);
+  const cons = list(idea?.cons).length ? list(idea.cons) : list(idea?.risks);
+  const lines = [
+    title,
+    description,
+    "",
+    "Pros:",
+    ...(pros.length ? pros.map((item) => `- ${item}`) : ["- Not listed"]),
+    "",
+    "Cons:",
+    ...(cons.length ? cons.map((item) => `- ${item}`) : ["- Not listed"]),
+  ];
+  const message = lines.join("\n");
+  return message.length <= 2000 ? message : `${message.slice(0, 1999).trimEnd()}…`;
+}
 
 export function IdeaTags({ idea }) {
   const difficulty = text(idea?.difficulty);
@@ -172,13 +193,57 @@ export default function IdeaDetailsDialog({
   brief = null,
   incomplete = false,
   returnFocusRef = null,
+  onShareOpen,
+  shareFriends = [],
+  shareTeams = [],
+  shareLoading = false,
+  shareError = "",
+  onShareTarget,
 }) {
   const dialogRef = useRef(null);
   const closeRef = useRef(onClose);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareKind, setShareKind] = useState("");
+  const [shareBusy, setShareBusy] = useState(false);
+  const [shareStatus, setShareStatus] = useState({ text: "", error: false });
 
   useEffect(() => {
     closeRef.current = onClose;
   }, [onClose]);
+
+  const openShare = () => {
+    if (shareOpen) {
+      setShareOpen(false);
+      return;
+    }
+    setShareKind("");
+    setShareStatus({ text: "", error: false });
+    setShareOpen(true);
+    onShareOpen?.(idea);
+  };
+
+  const shareTo = async (target) => {
+    setShareBusy(true);
+    setShareStatus({ text: "", error: false });
+    try {
+      await onShareTarget?.(shareKind, target, idea);
+      setShareStatus({ text: "Shared!", error: false });
+    } catch (error) {
+      setShareStatus({ text: error.message || "The idea could not be shared.", error: true });
+    } finally {
+      setShareBusy(false);
+    }
+  };
+
+  const copyAsText = async () => {
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard access is unavailable in this browser.");
+      await navigator.clipboard.writeText(ideaShareText(idea));
+      setShareStatus({ text: "Copied as text!", error: false });
+    } catch (error) {
+      setShareStatus({ text: error.message || "The idea could not be copied.", error: true });
+    }
+  };
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -259,6 +324,107 @@ export default function IdeaDetailsDialog({
             <summary>Brief sent to the AI</summary>
             <BriefDetails brief={brief} />
           </details>
+        ) : null}
+
+        {onShareTarget ? (
+          <section style={{ marginTop: 16 }}>
+            <button
+              className="button button-outline"
+              type="button"
+              onClick={openShare}
+              style={{ minHeight: 34, padding: "0 13px", fontSize: 10 }}
+            >
+              Share
+            </button>
+            {shareOpen ? (
+              <div
+                style={{
+                  display: "grid",
+                  gap: 10,
+                  marginTop: 10,
+                  padding: 14,
+                  border: "1px solid var(--line)",
+                  borderRadius: 14,
+                  background: "var(--surface-muted)",
+                }}
+              >
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  <button
+                    className="button button-outline"
+                    type="button"
+                    onClick={() => setShareKind("friend")}
+                    aria-pressed={shareKind === "friend"}
+                    style={{ minHeight: 34, padding: "0 12px", fontSize: 10 }}
+                  >
+                    Share to a friend
+                  </button>
+                  <button
+                    className="button button-outline"
+                    type="button"
+                    onClick={() => setShareKind("team")}
+                    aria-pressed={shareKind === "team"}
+                    style={{ minHeight: 34, padding: "0 12px", fontSize: 10 }}
+                  >
+                    Share to a team chat
+                  </button>
+                  <button
+                    className="button button-outline"
+                    type="button"
+                    onClick={copyAsText}
+                    style={{ minHeight: 34, padding: "0 12px", fontSize: 10 }}
+                  >
+                    Copy as text
+                  </button>
+                </div>
+                {shareLoading ? <p className="muted small">Loading share targets…</p> : null}
+                {shareError ? <p className="org-field-error" role="alert">{shareError}</p> : null}
+                {!shareLoading && !shareError && shareKind === "friend" ? (
+                  shareFriends.length ? (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                      {shareFriends.map((friend) => (
+                        <button
+                          className="button button-outline"
+                          type="button"
+                          key={friend.id}
+                          disabled={shareBusy}
+                          onClick={() => shareTo(friend)}
+                          style={{ minHeight: 34, padding: "0 12px", fontSize: 10 }}
+                        >
+                          {text(friend.full_name) || "Friend"}
+                        </button>
+                      ))}
+                    </div>
+                  ) : <p className="muted small">You have no friends to share with yet.</p>
+                ) : null}
+                {!shareLoading && !shareError && shareKind === "team" ? (
+                  shareTeams.length ? (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                      {shareTeams.map((team) => (
+                        <button
+                          className="button button-outline"
+                          type="button"
+                          key={`${team.id}-${team.hackathon_id}`}
+                          disabled={shareBusy}
+                          onClick={() => shareTo(team)}
+                          style={{ minHeight: 34, padding: "0 12px", fontSize: 10 }}
+                        >
+                          {text(team.name) || "Team"}
+                        </button>
+                      ))}
+                    </div>
+                  ) : <p className="muted small">You&apos;re not in a team yet</p>
+                ) : null}
+                {shareStatus.text ? (
+                  <p
+                    className={shareStatus.error ? "org-field-error" : "muted small"}
+                    role={shareStatus.error ? "alert" : "status"}
+                  >
+                    {shareStatus.text}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+          </section>
         ) : null}
 
         <footer className="idea-modal-actions">

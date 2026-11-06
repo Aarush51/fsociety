@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { friendPairKey, sendChatMessage } from "../components/Chat";
 import EventCard from "../components/EventCard";
 import { Arrow, CopyIcon } from "../components/Icons";
-import IdeaDetailsDialog from "../components/IdeaDetails";
+import IdeaDetailsDialog, { ideaShareText } from "../components/IdeaDetails";
 import PageIntro from "../components/PageIntro";
 import PageTitle from "../components/PageTitle";
 import { useAuth } from "../context/AuthContext";
@@ -17,6 +18,7 @@ import {
 } from "../lib/format";
 import { fetchMyHackathons, fetchMyRank, splitMyHackathons } from "../lib/personal";
 import { ideaFromProject } from "../lib/projects";
+import { listFriends } from "../lib/friends";
 import { supabase } from "../lib/supabase";
 
 const HOME_HACKATHON_FIELDS =
@@ -51,6 +53,10 @@ export default function Dashboard() {
   // Saved ideas are opened from their own row, so the selected project lives in
   // the URL (?idea=<project id>) and a refresh keeps the same idea open.
   const [ideaDetails, setIdeaDetails] = useState(null);
+  const [shareFriends, setShareFriends] = useState([]);
+  const [shareTeams, setShareTeams] = useState([]);
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareError, setShareError] = useState("");
   const ratings = useHackathonRatings(upcoming);
 
   const loadDashboard = useCallback(async () => {
@@ -215,6 +221,40 @@ export default function Dashboard() {
     const next = new URLSearchParams(searchParams);
     next.delete("idea");
     setSearchParams(next, { replace: true });
+  };
+
+  const loadShareTargets = async (idea) => {
+    setShareLoading(true);
+    setShareError("");
+    try {
+      const teamRequest = idea?.hackathon_id
+        ? supabase.rpc("get_my_hackathon_team", { p_hackathon_id: idea.hackathon_id })
+        : supabase.rpc("get_my_hackathon_team");
+      const [friends, { data: teams, error: teamError }] = await Promise.all([
+        listFriends(),
+        teamRequest,
+      ]);
+      if (teamError) throw teamError;
+      setShareFriends(friends);
+      setShareTeams(Array.isArray(teams) ? teams : []);
+    } catch (requestError) {
+      console.error("Could not load idea share targets.", requestError);
+      setShareError(requestError.message || "Share targets could not be loaded.");
+    } finally {
+      setShareLoading(false);
+    }
+  };
+
+  const shareIdea = async (kind, target, idea) => {
+    if (!user?.id) throw new Error("Log in to share this idea.");
+    const body = ideaShareText(idea);
+    if (kind === "team") {
+      await sendChatMessage({ senderId: user.id, teamId: target.id, body });
+      return;
+    }
+    const friendPair = friendPairKey(user.id, target.id);
+    if (!friendPair) throw new Error("This friend chat could not be opened.");
+    await sendChatMessage({ senderId: user.id, friendPair, body });
   };
 
   const handleCopyFriendCode = async () => {
@@ -579,6 +619,12 @@ export default function Dashboard() {
           brief={openIdea.brief}
           incomplete={openIdea.incomplete}
           onClose={closeIdea}
+          onShareOpen={loadShareTargets}
+          shareFriends={shareFriends}
+          shareTeams={shareTeams}
+          shareLoading={shareLoading}
+          shareError={shareError}
+          onShareTarget={shareIdea}
         />
       ) : null}
     </>

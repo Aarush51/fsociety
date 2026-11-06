@@ -28,34 +28,45 @@ function EventRow({ event, toolsOpen, onToggleTools }) {
           ? `Live · Tier ${tier}`
           : "Live";
 
+  const statusBadgeClass =
+    reviewStatus === "pending"
+      ? "admin-badge admin-badge-pending"
+      : reviewStatus === "rejected"
+        ? "admin-badge admin-badge-rejected"
+        : "organizer-event-badge";
+
   const tierNote =
     reviewStatus === "approved" && tier && claimedTier && tier !== claimedTier
       ? `Tier ${tier} (you chose Tier ${claimedTier})`
       : "";
 
   return (
-    <article className="dashboard-data-card">
-      <div className="dashboard-card-header">
+    <article className="team-card">
+      <div className="team-card-heading">
         <div>
-          <strong>{event.title}</strong>
-          <small>{venue}</small>
+          <p className="eyebrow">HACKATHON</p>
+          <h2>{event.title}</h2>
         </div>
-        <span className="badge badge-neutral">{statusLabel}</span>
+        <span className={statusBadgeClass}>{statusLabel}</span>
       </div>
 
-      <div className="organizer-event-meta">
-        <span>{dates}</span>
-        <span>{capacity ? `${registered} of ${capacity} registered` : `${registered} registered`}</span>
-        <span>{formatPrice(event.price)}</span>
-        {ended ? <span>Ended</span> : <span>Open</span>}
-        {tierNote ? <span>{tierNote}</span> : null}
+      <p className="team-description">{venue}</p>
+
+      <div className="skill-list">
+        <span className="organizer-event-badge">{dates}</span>
+        <span className="organizer-event-badge">
+          {registered} registered{capacity ? ` of ${capacity}` : ""}
+        </span>
+        <span className="organizer-event-badge">{formatPrice(event.price)}</span>
+        <span className="organizer-event-badge">{ended ? "Ended" : "Open"}</span>
+        {tierNote ? <span className="organizer-event-badge">{tierNote}</span> : null}
       </div>
 
-      <div className="organizer-dashboard-actions">
+      <div className="org-form-actions">
         <Link className="button button-dark" to={`/hackathons/${encodeURIComponent(event.slug)}`}>
           View event <Arrow />
         </Link>
-        <button className="button secondary" type="button" onClick={onToggleTools}>
+        <button className="button button-outline" type="button" onClick={onToggleTools}>
           {toolsOpen ? "Hide tools" : "Open tools"}
         </button>
       </div>
@@ -65,7 +76,10 @@ function EventRow({ event, toolsOpen, onToggleTools }) {
   );
 }
 
-export default function OrganizerDashboard() {
+// `listOnly` is the Manage Hackathons view: the same page component without the
+// dashboard stats and shortcuts, leaving the organizer's hackathon list and the
+// existing per-event tools (View event / Open tools).
+export default function OrganizerDashboard({ listOnly = false }) {
   const { organization, loading: organizationLoading, error: organizationError } = useOrganization();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -110,10 +124,16 @@ export default function OrganizerDashboard() {
     [events],
   );
 
+  const pageTitle = listOnly ? "Manage hackathons | HackMate" : "Organizer dashboard | HackMate";
+  const introTitle = listOnly ? "Manage hackathons" : "Organizer dashboard";
+  const introDescription = listOnly
+    ? "Every hackathon you host, with the team, attendance and results tools in one place."
+    : "Track your events, attendance, and results in one place.";
+
   if (organizationLoading || (loading && !organization)) {
     return (
       <main className="page-main wrap">
-        <PageTitle title="Organizer dashboard | HackMate" />
+        <PageTitle title={pageTitle} />
         <p className="hackathon-status" role="status" aria-live="polite">
           Loading your organizer dashboard…
         </p>
@@ -124,10 +144,10 @@ export default function OrganizerDashboard() {
   if (organizationError || (!organization && !organizationError)) {
     return (
       <main className="page-main wrap">
-        <PageTitle title="Organizer dashboard | HackMate" />
+        <PageTitle title={pageTitle} />
         <PageIntro
           eyebrow="ORGANIZER"
-          title="Organizer dashboard"
+          title={introTitle}
           description="Register an organization first to start hosting hackathons."
         />
         <p className="form-message" role="status" data-error="true">
@@ -146,32 +166,53 @@ export default function OrganizerDashboard() {
 
   return (
     <main className="page-main wrap">
-      <PageTitle title="Organizer dashboard | HackMate" />
+      <PageTitle title={pageTitle} />
       <PageIntro
         eyebrow="ORGANIZER"
-        title="Organizer dashboard"
-        description="Track your events, attendance, and results in one place."
+        title={introTitle}
+        description={introDescription}
       />
 
-      <OrganizationStatusBanner organization={organization} />
+      {listOnly ? null : (
+        <>
+          <OrganizationStatusBanner organization={organization} />
 
-      <div className="summary-grid">
-        <div className="dashboard-stat">
-          <span className="eyebrow">CURRENT</span>
-          <strong>{current.length}</strong>
-          <small>active events</small>
-        </div>
-        <div className="dashboard-stat">
-          <span className="eyebrow">PAST</span>
-          <strong>{past.length}</strong>
-          <small>completed events</small>
-        </div>
-        <div className="dashboard-stat">
-          <span className="eyebrow">REGISTERED</span>
-          <strong>{registeredTotal}</strong>
-          <small>people across all events</small>
-        </div>
-      </div>
+          <section className="profile-stats organizer-stats" aria-label="Organizer stats">
+            <article>
+              <span className="eyebrow">CURRENT</span>
+              <strong>{current.length}</strong>
+              <span className="muted tiny">active events</span>
+            </article>
+            <article>
+              <span className="eyebrow">PAST</span>
+              <strong>{past.length}</strong>
+              <span className="muted tiny">completed events</span>
+            </article>
+            <article>
+              <span className="eyebrow">REGISTERED</span>
+              <strong>{registeredTotal}</strong>
+              <span className="muted tiny">people across all events</span>
+            </article>
+          </section>
+
+          <div className="shortcut-grid organizer-shortcuts">
+            <Link className="shortcut-card" to="/organizer/profile">
+              <span className="avatar blue">◉</span>
+              <strong>
+                Organizer profile <Arrow diagonal />
+              </strong>
+              <p className="muted tiny">The organization details participants see.</p>
+            </Link>
+            <Link className="shortcut-card" to="/organizer/registrations">
+              <span className="avatar peach">☰</span>
+              <strong>
+                Registrations <Arrow diagonal />
+              </strong>
+              <p className="muted tiny">Everyone signed up, their teams and IDs.</p>
+            </Link>
+          </div>
+        </>
+      )}
 
       {error ? (
         <p className="form-message" role="status" data-error="true">
@@ -189,30 +230,44 @@ export default function OrganizerDashboard() {
       ) : null}
 
       {current.length ? (
-        <section>
-          <h2 className="section-heading">Current events</h2>
-          {current.map((event) => (
-            <EventRow
-              key={event.id}
-              event={event}
-              toolsOpen={Boolean(openTools[event.id])}
-              onToggleTools={() => toggleTools(event.id)}
-            />
-          ))}
+        <section className="dashboard-data-section">
+          <div className="section-heading dashboard-heading">
+            <div>
+              <p className="eyebrow">CURRENT</p>
+              <h2>Current events</h2>
+            </div>
+          </div>
+          <div className="team-list">
+            {current.map((event) => (
+              <EventRow
+                key={event.id}
+                event={event}
+                toolsOpen={Boolean(openTools[event.id])}
+                onToggleTools={() => toggleTools(event.id)}
+              />
+            ))}
+          </div>
         </section>
       ) : null}
 
       {past.length ? (
-        <section>
-          <h2 className="section-heading">Past events</h2>
-          {past.map((event) => (
-            <EventRow
-              key={event.id}
-              event={event}
-              toolsOpen={Boolean(openTools[event.id])}
-              onToggleTools={() => toggleTools(event.id)}
-            />
-          ))}
+        <section className="dashboard-data-section">
+          <div className="section-heading dashboard-heading">
+            <div>
+              <p className="eyebrow">PAST</p>
+              <h2>Past events</h2>
+            </div>
+          </div>
+          <div className="team-list">
+            {past.map((event) => (
+              <EventRow
+                key={event.id}
+                event={event}
+                toolsOpen={Boolean(openTools[event.id])}
+                onToggleTools={() => toggleTools(event.id)}
+              />
+            ))}
+          </div>
         </section>
       ) : null}
     </main>
