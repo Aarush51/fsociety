@@ -135,7 +135,14 @@ export default function App() {
                     }
                   />
                   {/* The page itself redirects non-admins (and signed-out visitors) home. */}
-                  <Route path="admin" element={<Admin />} />
+                  <Route
+                    path="admin"
+                    element={
+                      <ProtectedRoute>
+                        <Admin />
+                      </ProtectedRoute>
+                    }
+                  />
                   <Route path="login" element={<Login />} />
                   <Route path="signup" element={<Signup />} />
                   <Route path="*" element={<NotFound />} />

@@ -16,7 +16,16 @@ function SetupCard({ title, message }) {
 }
 
 export default function ProtectedRoute({ children }) {
-  const { session, loading, configError, authError } = useAuth();
+  const {
+    session,
+    loading,
+    configError,
+    authError,
+    suspended,
+    suspensionLoading,
+    suspensionUserId,
+    suspensionError,
+  } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -50,6 +59,42 @@ export default function ProtectedRoute({ children }) {
   if (!session) {
     const returnTo = `${location.pathname}${location.search}${location.hash}`;
     return <Navigate to={`/login?redirect=${encodeURIComponent(returnTo)}`} replace />;
+  }
+
+  if (suspensionLoading || suspensionUserId !== session.user.id) {
+    return (
+      <main className="auth-main">
+        <p className="muted small" role="status">
+          Checking your account status…
+        </p>
+      </main>
+    );
+  }
+
+  if (suspensionError) {
+    return (
+      <main className="auth-main">
+        <section className="auth-card" role="alert">
+          <h1>Could not verify your account status</h1>
+          <p className="muted small">
+            {suspensionError.message || "Supabase could not verify whether your account is suspended."}
+          </p>
+        </section>
+      </main>
+    );
+  }
+
+  if (suspended) {
+    return (
+      <main className="auth-main">
+        <section className="auth-card" role="alert">
+          <h1>Your account is suspended</h1>
+          <p className="muted small">
+            You cannot access this page while your account is suspended.
+          </p>
+        </section>
+      </main>
+    );
   }
 
   return children;

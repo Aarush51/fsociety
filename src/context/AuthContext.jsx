@@ -31,6 +31,10 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(null);
+  const [suspended, setSuspended] = useState(false);
+  const [suspensionLoading, setSuspensionLoading] = useState(false);
+  const [suspensionUserId, setSuspensionUserId] = useState(null);
+  const [suspensionError, setSuspensionError] = useState(null);
   const [mode, setMode] = useState(readStoredMode);
   const configError = isSupabaseConfigured ? null : supabaseSetupMessage;
 
@@ -70,6 +74,49 @@ export function AuthProvider({ children }) {
       subscription.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    const userId = session?.user?.id;
+    if (!supabase || !userId) {
+      setSuspended(false);
+      setSuspensionLoading(false);
+      setSuspensionUserId(null);
+      setSuspensionError(null);
+      return undefined;
+    }
+
+    let active = true;
+    setSuspensionUserId(null);
+    setSuspensionLoading(true);
+    setSuspensionError(null);
+    supabase
+      .from("profiles")
+      .select("suspended")
+      .eq("id", userId)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) {
+          setSuspensionUserId(userId);
+          setSuspensionError(error);
+          return;
+        }
+        setSuspended(data?.suspended === true);
+        setSuspensionUserId(userId);
+      })
+      .catch((error) => {
+        if (!active) return;
+        setSuspensionUserId(userId);
+        setSuspensionError(error);
+      })
+      .finally(() => {
+        if (active) setSuspensionLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [session?.user?.id]);
 
   const signIn = useCallback(async (email, password) => {
     if (!supabase) throw new Error(supabaseSetupMessage);
@@ -128,6 +175,10 @@ export function AuthProvider({ children }) {
       user: session?.user ?? null,
       loading,
       authError,
+      suspended,
+      suspensionLoading,
+      suspensionUserId,
+      suspensionError,
       configError,
       mode,
       chooseMode,
@@ -136,7 +187,21 @@ export function AuthProvider({ children }) {
       signOut,
       isConfigured: isSupabaseConfigured,
     }),
-    [session, loading, authError, configError, mode, chooseMode, signIn, signUp, signOut],
+    [
+      session,
+      loading,
+      authError,
+      suspended,
+      suspensionLoading,
+      suspensionUserId,
+      suspensionError,
+      configError,
+      mode,
+      chooseMode,
+      signIn,
+      signUp,
+      signOut,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
