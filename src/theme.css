@@ -2346,6 +2346,19 @@ body, .hm-app-shell {
 }
 .chat-message-top strong { font-size: 12px; }
 .chat-message-top small { color: var(--muted); font-size: 11px; }
+.chat-sender-id {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: 10px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+  cursor: pointer;
+}
+.chat-sender-id:hover { color: var(--foreground); text-decoration: underline; }
+.chat-copy-feedback,
+.chat-copy-error { margin-left: 5px; font-size: 9px; font-weight: 400; }
+.chat-copy-feedback { color: var(--muted); }
+.chat-copy-error { color: #9d3027; }
 .chat-message p {
   margin: 0;
   font-size: 13px;
