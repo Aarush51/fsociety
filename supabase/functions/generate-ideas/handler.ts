@@ -5,6 +5,7 @@
 
 import {
   buildPrompt,
+  exceedsTimeBudget,
   MAX_BODY_BYTES,
   normalizeBrief,
   parseIdeas,
@@ -117,6 +118,9 @@ export async function handleRequest(
   const timeoutMs = readTimeout(env);
   const provider = createGroqProvider(env, fetchImpl);
   const deadline = Date.now() + MAX_TOTAL_REQUEST_MS;
+  // Feedback must be reflected in every idea. One stricter retry is allowed
+  // when the model leaves feedbackNote empty.
+  let stricter = false;
   try {
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
       const remainingMs = deadline - Date.now();
@@ -132,7 +136,13 @@ export async function handleRequest(
       try {
         let responseText: string;
         try {
-          responseText = await provider.generate(buildPrompt(brief), controller.signal);
+          const prompt = buildPrompt(brief, { stricter });
+          // TEMP logging so the exact prompt is visible in the function logs.
+          // Remove once feedback handling is confirmed in production.
+          console.log(
+            `[generate-ideas] TEMP prompt (attempt ${attempt + 1}, stricter=${stricter}):\n${prompt}`,
+          );
+          responseText = await provider.generate(prompt, controller.signal);
         } catch (error) {
           if (error instanceof ProviderConfigError) {
             console.error("[generate-ideas] Groq provider is not configured.");
@@ -183,6 +193,18 @@ export async function handleRequest(
           return jsonResponse(502, {
             error: "The idea service returned an unexpected response. Try again.",
           });
+        }
+
+        const missingNote = ideas.filter((idea) => !idea.feedbackNote).length;
+        const overBudget = ideas.filter((idea) =>
+          exceedsTimeBudget(idea.estimated_time, brief.time)
+        ).length;
+        if (brief.feedback && !stricter && (missingNote > 0 || overBudget > 0)) {
+          stricter = true;
+          console.error(
+            `[generate-ideas] Rejected output (${missingNote} idea(s) without feedbackNote, ${overBudget} over the time budget); retrying once with a stricter reminder.`,
+          );
+          continue;
         }
 
         return jsonResponse(200, { ideas });

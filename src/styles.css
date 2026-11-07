@@ -733,6 +733,10 @@ h1, h2, h3 { letter-spacing: -.055em; }
 .idea-field > label, .idea-label { font-size: 10px; font-weight: 700; }
 .idea-field input, .idea-field select, .idea-field textarea { width: 100%; min-height: 42px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 11px; background: #fff; color: var(--foreground); font: inherit; font-size: 12px; }
 .idea-field textarea { resize: vertical; line-height: 1.6; }
+.idea-counter-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.idea-counter-row > p { margin: 0; }
+.idea-counter-row .text-link { padding: 0; border: 0; background: none; cursor: pointer; font: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.idea-counter-row .text-link:disabled { cursor: not-allowed; opacity: .45; text-decoration: none; }
 .idea-field input:focus, .idea-field select:focus, .idea-field textarea:focus { border-color: #8caf3d; outline: 2px solid rgba(140,175,61,.2); }
 .idea-status { min-height: 16px; margin: 0; color: #686a61; font-size: 10px; line-height: 1.6; }
 .idea-theme { padding: 16px 17px; border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,.7); }
