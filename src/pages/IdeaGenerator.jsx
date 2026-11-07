@@ -84,7 +84,7 @@ function mergeSkills(primary, extra) {
   return merged;
 }
 
-function IdeaCard({ idea, index, selected, onViewDetails, onUse }) {
+function IdeaCard({ idea, index, selected, showFeedback, onViewDetails, onUse }) {
   return (
     <article className={`idea-card${selected ? " idea-card-selected" : ""}`}>
       <div className="idea-card-top">
@@ -98,6 +98,12 @@ function IdeaCard({ idea, index, selected, onViewDetails, onUse }) {
       </div>
 
       <IdeaDetailBlocks idea={idea} />
+
+      {showFeedback && String(idea.feedbackNote || "").trim() ? (
+        <p className="idea-why idea-feedback-note">
+          <strong>How this reflects your feedback:</strong> {String(idea.feedbackNote).trim()}
+        </p>
+      ) : null}
 
       <footer className="idea-card-actions">
         <button
@@ -224,6 +230,7 @@ export default function IdeaGenerator() {
   const [myDraft, setMyDraft] = useState("");
   const [teamDraft, setTeamDraft] = useState("");
   const [interests, setInterests] = useState("");
+  const [feedback, setFeedback] = useState("");
   const [time, setTime] = useState("");
   const [message, setMessage] = useState({ text: "", error: false });
   const [brief, setBrief] = useState(null);
@@ -669,6 +676,7 @@ export default function IdeaGenerator() {
 
   const handleGenerate = async () => {
     const trimmedInterests = interests.trim();
+    const trimmedFeedback = feedback.trim();
 
     if (!selectedHackathon) {
       setMessage({ text: "Choose an approved hackathon to build for.", error: true });
@@ -687,6 +695,14 @@ export default function IdeaGenerator() {
       return;
     }
 
+    // Keep the last run's ideas so the function can revise them instead of
+    // starting from scratch.
+    const previousIdeas = ideas.map((idea) => ({
+      title: idea.title,
+      problem: idea.problem,
+      solution: idea.solution,
+    }));
+
     if (generatingRef.current) return;
     generatingRef.current = true;
 
@@ -697,6 +713,7 @@ export default function IdeaGenerator() {
       teamSkills,
       interests: trimmedInterests,
       time: timeOption,
+      feedback: trimmedFeedback,
     });
     setIdeas([]);
     setSelectedTitle(null);
@@ -720,6 +737,8 @@ export default function IdeaGenerator() {
         skills,
         interests: trimmedInterests,
         teamSkills,
+        feedback: trimmedFeedback,
+        previousIdeas,
         time: timeOption?.label || "",
       });
       setIdeas(generated);
@@ -757,7 +776,7 @@ export default function IdeaGenerator() {
               <span className="status-label">YOUR BRIEF</span>
               <h2 id="idea-builder-heading">Tell the generator what it's working with.</h2>
               <p className="muted small">
-                Five quick steps. Your brief is sent to the Edge Function only when you press Generate Ideas.
+                Six quick steps. Your brief is sent to the Edge Function only when you press Generate Ideas.
               </p>
             </div>
 
@@ -979,6 +998,43 @@ export default function IdeaGenerator() {
               </div>
             </div>
 
+            <div className="idea-step">
+              <span className="idea-step-number" aria-hidden="true">
+                06
+              </span>
+              <div className="idea-step-body">
+                <div className="idea-field">
+                  <label htmlFor="idea-feedback">Do you have any feedback or special requests?</label>
+                  <p className="muted tiny">
+                    Optional. This shapes the ideas you get. For example “make it simpler”, “use
+                    Python”, “avoid payments” or “focus on mobile”.
+                  </p>
+                  <textarea
+                    id="idea-feedback"
+                    rows="3"
+                    maxLength="300"
+                    placeholder="make it simpler, use Python, avoid payments…"
+                    value={feedback}
+                    onChange={(event) => {
+                      setFeedback(event.target.value);
+                      setMessage({ text: "", error: false });
+                    }}
+                  />
+                  <div className="idea-counter-row">
+                    <p className="muted tiny">{feedback.trim().length}/300 characters</p>
+                    <button
+                      className="text-link idea-feedback-clear"
+                      type="button"
+                      onClick={() => setFeedback("")}
+                      disabled={!feedback}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div className="idea-actions">
               <button
                 className="button button-dark idea-generate"
@@ -991,7 +1047,11 @@ export default function IdeaGenerator() {
                   "Generating ideas…"
                 ) : (
                   <>
-                    <span aria-hidden="true">✳</span> Generate Ideas <Arrow diagonal />
+                    <span aria-hidden="true">✳</span>{" "}
+                    {ideas.length && feedback.trim()
+                      ? "Regenerate with feedback"
+                      : "Generate Ideas"}{" "}
+                    <Arrow diagonal />
                   </>
                 )}
               </button>
@@ -1054,6 +1114,7 @@ export default function IdeaGenerator() {
                     index={index}
                     key={idea.title}
                     selected={selectedTitle === idea.title}
+                    showFeedback={Boolean(brief?.feedback)}
                     onViewDetails={(trigger) => openDetails(idea, trigger)}
                     onUse={handleUseIdea}
                   />
@@ -1156,7 +1217,7 @@ export default function IdeaGenerator() {
             <>
               <div className="idea-preview-top">
                 <span className="status-label">WAITING FOR A BRIEF</span>
-                <span className="muted tiny">Steps 01–05, then generate</span>
+                <span className="muted tiny">Steps 01–06, then generate</span>
               </div>
               <h2 id="idea-preview-heading">Your ideas will appear here.</h2>
               <p className="muted small">

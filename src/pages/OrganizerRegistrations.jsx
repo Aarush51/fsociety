@@ -6,19 +6,16 @@ import PageTitle from "../components/PageTitle";
 import { useOrganization } from "../context/OrganizationContext";
 import { formatEventDate, formatPrice } from "../lib/format";
 import { loadOrganizerEvents } from "../lib/organizations";
-import { fetchRegistrationInfo, registeredCount } from "../lib/registrations";
-import { listHackathonTeams, teamCodeFrom } from "../lib/teams";
+import { listHackathonTeams } from "../lib/teams";
 import { supabase } from "../lib/supabase";
-import { displayUserId } from "../lib/userIds";
 
-// The organizer's roster for one hackathon: everyone who registered, in
-// registration order, with the details each participant chose to share.
-//
-// What is visible is exactly what the live schema exposes to an organizer:
-//   registrations        own rows via the organizer RLS policy (user_id, paid, date)
-//   list_hackathon_teams SECURITY DEFINER — member names, usernames, skills
-// A participant who has not joined or created a team yet therefore shows only
-// their participant ID; their profile details appear as soon as they form one.
+const PAGE_CONTAINER_STYLE = {
+  width: "min(calc(100% - var(--space-xl)), 1120px)",
+  marginInline: "auto",
+};
+
+// The organizer's roster for one hackathon: registrations enriched with
+// participant and team details from the existing team-list RPC.
 export default function OrganizerRegistrations() {
   const { organization, loading: organizationLoading, error: organizationError } = useOrganization();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -61,14 +58,13 @@ export default function OrganizerRegistrations() {
     setRoster(null);
     setError(null);
     try {
-      const [registrationsResult, teamRows, info] = await Promise.all([
+      const [registrationsResult, teamRows] = await Promise.all([
         supabase
           .from("registrations")
           .select("id, user_id, paid, created_at")
           .eq("hackathon_id", hackathonId)
           .order("created_at", { ascending: true }),
         listHackathonTeams(hackathonId),
-        fetchRegistrationInfo(hackathonId),
       ]);
       if (registrationsResult.error) throw registrationsResult.error;
 
@@ -84,8 +80,6 @@ export default function OrganizerRegistrations() {
           ...row,
           person: peopleByUser.get(row.user_id) || null,
         })),
-        teamCount: teamRows.length,
-        info,
       });
     } catch (requestError) {
       console.error("Could not load registrations.", requestError);
@@ -110,7 +104,7 @@ export default function OrganizerRegistrations() {
 
   if (organizationLoading || (loading && !events)) {
     return (
-      <main className="page-main wrap">
+      <main className="page-main wrap" style={PAGE_CONTAINER_STYLE}>
         <PageTitle title="Registrations | HackMate" />
         <p className="hackathon-status" role="status" aria-live="polite">
           Loading your hackathons…
@@ -121,7 +115,7 @@ export default function OrganizerRegistrations() {
 
   if (organizationError || (!organization && !organizationError)) {
     return (
-      <main className="page-main wrap">
+      <main className="page-main wrap" style={PAGE_CONTAINER_STYLE}>
         <PageTitle title="Registrations | HackMate" />
         <p className="hackathon-status" role="status" data-error="true">
           {organizationError
@@ -139,7 +133,7 @@ export default function OrganizerRegistrations() {
 
   if (!events?.length) {
     return (
-      <main className="page-main wrap">
+      <main className="page-main wrap" style={PAGE_CONTAINER_STYLE}>
         <PageTitle title="Registrations | HackMate" />
         <PageIntro
           eyebrow="ORGANIZER"
@@ -162,7 +156,7 @@ export default function OrganizerRegistrations() {
   const total = roster ? roster.rows.length : 0;
 
   return (
-    <main className="page-main wrap">
+    <main className="page-main wrap" style={PAGE_CONTAINER_STYLE}>
       <PageTitle title="Registrations | HackMate" />
       <Link className="back-link" to="/organizer">
         ← Organizer dashboard
@@ -197,9 +191,9 @@ export default function OrganizerRegistrations() {
 
       <p className="muted small">
         {roster
-          ? `${total} registered${capacity ? ` of ${capacity} spots` : ""}${
-              selectedEvent ? ` · entry ${formatPrice(selectedEvent.price) || "Free"}` : ""
-            }`
+          ? selectedEvent
+            ? `Entry ${formatPrice(selectedEvent.price) || "Free"}`
+            : ""
           : "Loading registrations…"}
         {selectedEvent ? (
           <>
@@ -234,7 +228,7 @@ export default function OrganizerRegistrations() {
       ) : null}
 
       {roster && roster.rows.length === 0 ? (
-        <p className="team-empty">No registrations yet for this hackathon.</p>
+        <p className="team-empty">No registrations yet.</p>
       ) : null}
 
       {roster && roster.rows.length ? (
@@ -242,58 +236,29 @@ export default function OrganizerRegistrations() {
           {roster.rows.map((row, index) => {
             const person = row.person?.member || null;
             const team = row.person?.team || null;
-            const skills = person?.skills || [];
             return (
               <article className="team-card" key={row.id}>
                 <div className="team-card-heading">
                   <div>
-                    <p className="eyebrow">
-                      #{String(index + 1).padStart(2, "0")} · ID {displayUserId(person)}{" "}
-                      · REGISTERED {formatEventDate(row.created_at)}
-                    </p>
-                    <h2>{person ? person.full_name : "Waiting for a team"}</h2>
+                    <p className="eyebrow">REGISTRATION #{index + 1}</p>
+                    <h2>{person?.full_name || "Participant"}</h2>
                   </div>
                   <span className="team-member-count">
-                    {row.paid ? "PAID" : "REGISTERED"}
+                    {row.paid ? "PAID" : "UNPAID"}
                   </span>
                 </div>
-                {person ? (
-                  <p className="team-description">
-                    @{person.username}
-                    {team ? (
-                      <>
-                        {" "}
-                        · Team “{team.name}” · Team ID {teamCodeFrom(team.id)} ·{" "}
-                        {person.role === "leader" ? "Leader" : "Member"}
-                      </>
-                    ) : null}
-                  </p>
-                ) : (
-                  <p className="team-description">
-                    Registered {formatEventDate(row.created_at)}. Profile details appear here as
-                    soon as this participant makes or joins a team.
-                  </p>
-                )}
-                {skills.length ? (
-                  <div className="skill-list">
-                    {skills.map((skill) => (
-                      <span className="skill" key={skill}>
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
+                <p className="team-description">
+                  {team?.name || "No team yet"} · Registered {formatEventDate(row.created_at)}
+                </p>
               </article>
             );
           })}
         </div>
       ) : null}
 
-      {roster && roster.rows.length ? (
+      {roster ? (
         <p className="muted tiny">
-          {roster.teamCount} {roster.teamCount === 1 ? "team" : "teams"} formed ·{" "}
-          {registeredCount(roster.info)} shown by the public registration count
-          {capacity ? ` · capacity ${capacity}` : ""}
+          {total} of {capacity} spots filled
         </p>
       ) : null}
     </main>
